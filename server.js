@@ -5,9 +5,12 @@ const { spawn } = require("child_process");
 const { chromium } = require("playwright");
 const { buildStoryboard } = require("./director");
 const { runWorkflow } = require("./runner");
+const { validateTarget, resourceConfig } = require("./model/security");
 
 const PORT = process.env.PORT || 4173;
 const root = __dirname;
+const CONFIG=resourceConfig();
+const MAX_BODY=64*1024;
 const mime = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css", ".json":"application/json", ".png":"image/png" };
 
 async function inspect(url) {
@@ -34,7 +37,7 @@ async function inspect(url) {
 const server = http.createServer(async (req,res) => {\n  if (req.method === "OPTIONS") { res.writeHead(204, {"Access-Control-Allow-Origin":"*", "Access-Control-Allow-Methods":"POST,OPTIONS", "Access-Control-Allow-Headers":"Content-Type"}); return res.end(); }
   try {
     if (req.method === "POST" && req.url === "/api/record") {
-      let body=""; req.on("data", c => body += c);
+      let body=""; let bodyTooLarge=false; req.on("data", c => { body += c; if(body.length>MAX_BODY) bodyTooLarge=true; });
       req.on("end", async () => {
         try {
           const { url, maxSteps } = JSON.parse(body || "{}");
@@ -51,18 +54,18 @@ const server = http.createServer(async (req,res) => {\n  if (req.method === "OPT
     }
 
     if (req.method === "POST" && req.url === "/api/produce") {
-      let body = ""; req.on("data", c => body += c);
+      let body = ""; let bodyTooLarge=false; req.on("data", c => { body += c; if(body.length>MAX_BODY) bodyTooLarge=true; });
       req.on("end", () => {
         try {
           const { url, maxSteps, description } = JSON.parse(body || "{}");
           if (!url || !/^https?:\\/\\//i.test(url)) throw new Error("A valid http(s) URL is required.");
           const args = ["brag.js", url, String(maxSteps || 4)];
           if (description) args.push(String(description));
-          const child = spawn(process.execPath, args, { cwd: root, env: process.env });
+          const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, BRAG_MAX_STEPS: String(CONFIG.maxSteps) } });\n          const killTimer=setTimeout(()=>child.kill("SIGTERM"),CONFIG.maxRuntimeMs);
           let stdout = "", stderr = "";
           child.stdout.on("data", d => stdout += d.toString());
           child.stderr.on("data", d => stderr += d.toString());
-          child.on("close", code => {
+          child.on("close", code => {\n            clearTimeout(killTimer);
             const qaPath = path.join(root, "output", "qa", "report.json");
             const qa = fs.existsSync(qaPath) ? JSON.parse(fs.readFileSync(qaPath, "utf8")) : null;
             const result = {

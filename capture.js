@@ -62,7 +62,8 @@ async function load(page, target) {
     })).filter(x=>x.text));
     await page.screenshot({ path:"output/home.png", fullPage:true });
 
-    guard.assertTime(); guard.assertOutput();\n    const result = {
+    guard.assertTime(); guard.assertOutput();
+    const result = {
       version:"1.1", url, title, description,
       headings:headings.map(x=>x.trim()).filter(Boolean).slice(0,30), links, buttons,
       requestCount:requests.length, requestFailures, consoleErrors,

@@ -63,7 +63,9 @@ function writeFinalManifest(qaReport) {
     "report.json": "output/qa/report.json",
     "qa-report.json": "output/qa/report.json",
     "storyboard.json": "output/storyboard.json",
-    "shot-plan.json": "output/shot-plan.json"
+    "shot-plan.json": "output/shot-plan.json",
+    "evidence-report.json": "output/evidence-report.json",
+    "evidence-graph.json": "output/evidence-graph.json"
   };
 
   for (const [name, source] of Object.entries(artifacts)) {
@@ -106,6 +108,7 @@ function main() {
   run("CAPTURE", "runner.js", [url, maxSteps]);
 
   run("EVIDENCE CHECK", "model/verify.js");
+  run("EVIDENCE GRAPH", "model/evidence-graph.js");
 
   const evidencePath = "output/evidence-report.json";
   if (fs.existsSync(evidencePath)) {

@@ -84,3 +84,20 @@ Each demo scene can carry:
 - source evidence-unit IDs
 
 This creates a traceable path from **claim → evidence → scene → footage** instead of treating verification as a single pass/fail check.
+
+
+## Evidence-driven production gate
+
+BRAG now treats evidence provenance as a production dependency, not a post-hoc report.
+
+The capture chain is:
+
+`claim → action → browser state → evidence → shot → narration → render`
+
+The browser runner records explicit claim bindings on selected actions and captured states. If a state fails to prove its target, the runner can replan toward another safe action.
+
+Before rendering, `brag.js` requires the evidence graph to exist and requires the core claims `promise`, `strongestAction`, and `proof` to resolve to captured evidence.
+
+QA also checks the evidence report and evidence graph. A missing or broken provenance path blocks production handoff.
+
+This keeps BRAG deterministic and local-first: AI can recommend the story, but the browser camera and production gate remain authoritative.

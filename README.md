@@ -265,3 +265,37 @@ Resource limits can be adjusted through environment variables, within hard safet
 - `BRAG_MAX_OUTPUT_FILES`
 
 These limits are intentionally bounded in code. Environment variables cannot disable the security boundary.
+
+
+## Regression and multi-product testing
+
+Run the deterministic regression suite:
+
+```bash
+npm test
+```
+
+This verifies the revision loop, capture recovery, CLI parsing, security boundaries, and required production modules.
+
+BRAG also maintains a ten-product external matrix in `test/products.json`.
+
+Inspect the complete matrix:
+
+```bash
+BRAG_TEST_LIMIT=10 node product-suite.js
+```
+
+Run a bounded slice:
+
+```bash
+BRAG_TEST_OFFSET=0 BRAG_TEST_LIMIT=5 node product-suite.js
+BRAG_TEST_OFFSET=5 BRAG_TEST_LIMIT=5 node product-suite.js
+```
+
+For full production tests, use `--full` only when the local environment has Playwright, FFmpeg, and the required AI/TTS dependencies:
+
+```bash
+BRAG_TEST_LIMIT=10 node product-suite.js --full
+```
+
+The release target is **8/10 unrelated products passing**. Inspect mode tests evidence extraction and browser reachability. Full mode tests the complete Product → Story → Video pipeline.

@@ -107,19 +107,18 @@ async function runWorkflow(url, options = {}) {
     intelligence.origin = origin;
     const shotPlan = buildShotPlan(intelligence);
 
-    const claimTargets = [
-      ["problem", intelligence.problem],
-      ["promise", intelligence.promise],
-      ["strongestAction", intelligence.strongestAction],
-      ["workflow-1", intelligence.workflow?.[0]],
-      ["workflow-2", intelligence.workflow?.[1]],
-      ["workflow-3", intelligence.workflow?.[2]],
-      ["proof", intelligence.proof]
-    ].filter(([, claim]) => claim);
+    const claimTargets = {
+      establish: ["promise", intelligence.promise],
+      "primary-action": ["workflow-1", intelligence.workflow?.[0] || intelligence.strongestAction],
+      "core-action": ["workflow-2", intelligence.workflow?.[1]],
+      proof: ["proof", intelligence.proof],
+      hold: ["proof", intelligence.proof],
+      close: ["strongestAction", intelligence.strongestAction]
+    };
 
     for (let step = 1; step <= maxSteps; step++) {
       const shot = shotPlan.shots[Math.min(step - 1, shotPlan.shots.length - 1)];
-      const targetClaim = claimTargets[Math.min(step - 1, claimTargets.length - 1)] || null;
+      const targetClaim = claimTargets[shot?.id] || null;
       const actionStartedAt = Date.now();
       const beforeUrl = page.url();
       const screenshot = `step-${String(step).padStart(2, "0")}-before.png`;

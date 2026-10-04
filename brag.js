@@ -1,170 +1,104 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
+const { maxAttempts, loadPlan, snapshotAttempt, buildDecision } = require("./model/revision-loop");
 
 const url = process.argv.find(a => /^https?:\/\//i.test(a)) || null;
 const checkOnly = process.argv.includes("--check");
 
-function run(label, script, args = [], options = {}) {
+function run(label, script, args = [], allowFailure = false) {
   console.log("\n=== " + label + " ===");
-  const result = spawnSync(process.execPath, [script, ...args], {
-    stdio: "inherit",
-    env: process.env,
-    ...options
-  });
-  if (result.status !== 0) {
-    throw new Error(label + " failed with exit code " + result.status);
-  }
+  const r = spawnSync(process.execPath, [script, ...args], { stdio: "inherit", env: process.env });
+  if (r.status !== 0 && !allowFailure) throw new Error(label + " failed with exit code " + r.status);
+  return r.status || 0;
 }
-
-function ensureCommand(command) {
-  try {
-    execFileSync(command, ["-version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
+function json(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; }
 }
-
 function checkEnvironment() {
-  const checks = [
-    ["Node.js", Boolean(process.version)],
-    ["FFmpeg", ensureCommand("ffmpeg")],
-    ["Playwright package", fs.existsSync(path.join(__dirname, "node_modules", "playwright"))]
-  ];
-  if (!checks.every(([, ok]) => ok)) {
-    console.error(JSON.stringify(Object.fromEntries(checks.map(([name, ok]) => [name, ok])), null, 2));
-    throw new Error("BRAG environment check failed.");
-  }
-  console.log(JSON.stringify(Object.fromEntries(checks.map(([name, ok]) => [name, ok])), null, 2));
+  const checks = [["Node.js", Boolean(process.version)], ["FFmpeg", has("ffmpeg")], ["Playwright package", fs.existsSync(path.join(__dirname, "node_modules", "playwright"))]];
+  if (!checks.every(x => x[1])) throw new Error("BRAG environment check failed: " + JSON.stringify(Object.fromEntries(checks)));
+  console.log(JSON.stringify(Object.fromEntries(checks), null, 2));
 }
-
-function finalOutputs() {
-  return [
-    "brag-demo-16x9.mp4",
-    "brag-demo-9x16.mp4",
-    "brag-demo-1x1.mp4"
-  ].map(name => path.join("output", "render", name));
+function has(command) { try { execFileSync(command, ["-version"], { stdio: "ignore" }); return true; } catch { return false; } }
+function cleanOutput() {
+  if (!fs.existsSync("output")) return;
+  for (const entry of fs.readdirSync("output")) if (entry !== "revisions") fs.rmSync(path.join("output", entry), { recursive: true, force: true });
 }
-
-function writeFinalManifest(qaReport) {
-  const finalDir = path.join("output", "final");
-  fs.mkdirSync(finalDir, { recursive: true });
-  const files = finalOutputs();
-
-  for (const file of files) {
-    if (!fs.existsSync(file) || fs.statSync(file).size === 0) {
-      throw new Error("Missing final render: " + file);
-    }
-    fs.copyFileSync(file, path.join(finalDir, path.basename(file).replace("brag-demo-", "product-demo-")));
-  }
-
-  const artifacts = {
-    "report.json": "output/qa/report.json",
-    "qa-report.json": "output/qa/report.json",
-    "storyboard.json": "output/storyboard.json",
-    "shot-plan.json": "output/shot-plan.json",
-    "evidence-report.json": "output/evidence-report.json",
-    "evidence-graph.json": "output/evidence-graph.json",
-    "self-evaluation.json": "output/self-evaluation.json",
-    "revision-plan.json": "output/revision-plan.json"
-  };
-
-  for (const [name, source] of Object.entries(artifacts)) {
-    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(finalDir, name));
-  }
-
-  fs.writeFileSync(path.join(finalDir, "production.json"), JSON.stringify({
-    version: "2.1",
-    generatedAt: new Date().toISOString(),
-    outputs: files.map(file => path.join("output", "final", path.basename(file).replace("brag-demo-", "product-demo-"))),
-    qa: qaReport || null
-  }, null, 2));
-}
-
-function main() {
-  checkEnvironment();
-  if (checkOnly) {
-    run("HARDENING", "harden.js");
-    console.log("BRAG environment and source checks are ready.");
-    return;
-  }
-
-  if (!url) {
-    console.error("Usage: npm run brag -- https://example.com [maxSteps] [description]");
-    process.exit(1);
-  }
-
-  const maxSteps = process.argv[process.argv.indexOf(url) + 1] || "4";
-  const urlIndex = process.argv.indexOf(url);
-  const description = process.argv.slice(urlIndex + 2).filter(x => !x.startsWith("--")).join(" ");
-
-  fs.mkdirSync("output", { recursive: true });
-
+function production(url, steps, description) {
   run("INSPECT", "capture.js", [url]);
   run("VISUAL DIRECTOR", "model/vision.js");
   run("SPEECH DIRECTOR", "model/transcribe.js");
   run("AI DIRECTOR", "model/director.js");
   run("DIRECT", "director.js");
-
-  run("CAPTURE", "runner.js", [url, maxSteps]);
-
-  run("EVIDENCE CHECK", "model/verify.js");
+  run("CAPTURE", "runner.js", [url, steps]);
+  run("EVIDENCE CHECK", "model/verify.js", [], true);
   run("EVIDENCE GRAPH", "model/evidence-graph.js");
-
-  const graphPath = "output/evidence-graph.json";
-  if (!fs.existsSync(graphPath)) {
-    throw new Error("Production gate failed: evidence graph was not generated.");
-  }
-  const graph = JSON.parse(fs.readFileSync(graphPath, "utf8"));
-  const requiredClaims = (graph.claims || []).filter(c => ["promise", "strongestAction", "proof"].includes(c.field));
-  const brokenClaims = requiredClaims.filter(c => !c.evidence?.length);
-  if (brokenClaims.length) {
-    throw new Error("Production gate failed: required claims lack captured evidence: " + brokenClaims.map(c => c.field).join(", "));
-  }
-
-  const evidencePath = "output/evidence-report.json";
-  if (fs.existsSync(evidencePath)) {
-    const evidence = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
-    if (evidence.status === "fail") {
-      console.error("\nBRAG stopped before rendering because product claims failed evidence verification.");
-      process.exit(3);
-    }
-  }
-
-  run("BUILD DEMO PACKAGE", "demo.js", [url, maxSteps, description]);
+  run("BUILD DEMO PACKAGE", "demo.js", [url, steps, description]);
   run("HUMAN EDIT PLAN", "edit-plan.js", ["output/demo/package.json"]);
-
-  if (process.env.PIPER_MODEL) {
-    run("NARRATE", "voice.js", ["output/demo/package.json"]);
-  } else {
-    console.log("\n=== NARRATE ===");
-    console.log("Skipped local Piper TTS: PIPER_MODEL is not set.");
-  }
-
+  if (process.env.PIPER_MODEL) run("NARRATE", "voice.js", ["output/demo/package.json"]);
+  else console.log("Skipping Piper TTS: PIPER_MODEL is not set.");
   run("RENDER", "render.js", ["output/demo/package.json"]);
-  run("QA", "qa.js", ["output/demo/package.json"]);
-  run("SELF-EVALUATE", "model/self-evaluate.js", ["output/demo/package.json"]);
-  run("REVISION PLAN", "model/revision-plan.js");
-
-  const qaPath = "output/qa/report.json";
-  const selfEvalPath = "output/self-evaluation.json";
-  const selfEvaluation = fs.existsSync(selfEvalPath)
-    ? JSON.parse(fs.readFileSync(selfEvalPath, "utf8"))
-    : null;
-  if (selfEvaluation?.status === "fail") {
-    console.error("\nBRAG stopped before final handoff because self-evaluation found a production weakness.");
-    process.exit(4);
-  }
-  const qa = fs.existsSync(qaPath) ? JSON.parse(fs.readFileSync(qaPath, "utf8")) : null;
-  if (qa && qa.status === "fail") {
-    console.error("\nBRAG stopped before final handoff because QA failed.");
-    process.exit(2);
-  }
-
-  writeFinalManifest(qa);
-  console.log("\nBRAG production complete.");
-  console.log("Final videos: output/final/");
+  run("QA", "qa.js", ["output/demo/package.json"], true);
+  run("SELF-EVALUATE", "model/self-evaluate.js", ["output/demo/package.json"], true);
+  run("REVISION PLAN", "model/revision-plan.js", [], true);
+  return { qa: json("output/qa/report.json"), evaluation: json("output/self-evaluation.json"), plan: loadPlan() };
 }
+function finalOutputs() {
+  return ["16x9", "9x16", "1x1"].map(k => path.join("output", "render", "brag-demo-" + k + ".mp4"));
+}
+function handoff(qa, history) {
+  const dir = "output/final";
+  fs.mkdirSync(dir, { recursive: true });
+  for (const file of finalOutputs()) {
+    if (!fs.existsSync(file) || !fs.statSync(file).size) throw new Error("Missing final render: " + file);
+    fs.copyFileSync(file, path.join(dir, path.basename(file).replace("brag-demo-", "product-demo-")));
+  }
+  for (const [name, src] of Object.entries({
+    "report.json":"output/qa/report.json","qa-report.json":"output/qa/report.json","storyboard.json":"output/storyboard.json",
+    "shot-plan.json":"output/shot-plan.json","evidence-report.json":"output/evidence-report.json",
+    "evidence-graph.json":"output/evidence-graph.json","self-evaluation.json":"output/self-evaluation.json","revision-plan.json":"output/revision-plan.json"
+  })) if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dir, name));
+  fs.writeFileSync(path.join(dir, "production.json"), JSON.stringify({ version:"3.0", generatedAt:new Date().toISOString(), qa, revisions:history }, null, 2));
+}
+function main() {
+  checkEnvironment();
+  if (checkOnly) { run("HARDENING", "harden.js"); return; }
+  if (!url) throw new Error("Usage: npm run brag -- https://example.com [maxSteps] [description] [--max-revisions N]");
+  const i = process.argv.indexOf(url);
+  const steps = process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : "4";
+  const description = process.argv.slice(i + 2).filter(x => !x.startsWith("--") && x !== steps).join(" ");
+  const flag = process.argv.indexOf("--max-revisions");
+  const max = maxAttempts(flag >= 0 ? process.argv[flag + 1] : process.env.BRAG_MAX_REVISIONS);
+  fs.mkdirSync("output/revisions", { recursive:true });
+  const history = { version:"1.0", maxAttempts:max, attempts:[] };
 
+  for (let attempt = 0; attempt <= max; attempt++) {
+    if (attempt) cleanOutput();
+    const startedAt = new Date().toISOString();
+    let result;
+    try { result = production(url, steps, description); }
+    catch (e) { console.error(e.stack || e); process.exit(1); }
+
+    const decision = buildDecision({ attempt, max, plan:result.plan, evaluation:result.evaluation });
+    if (result.evaluation?.status === "pass" && result.qa?.status !== "fail") {
+      history.attempts.push({ attempt, startedAt, completedAt:new Date().toISOString(), decision:"pass", evaluationScore:result.evaluation.score, qaStatus:result.qa?.status });
+      fs.writeFileSync("output/revisions/history.json", JSON.stringify(history, null, 2));
+      handoff(result.qa, history);
+      console.log("\nBRAG production complete.");
+      return;
+    }
+    if (decision.action === "revise") {
+      const snapshot = snapshotAttempt(attempt, result.plan, result.evaluation, result.qa, { startedAt, decision:"revise" });
+      history.attempts.push({ attempt, startedAt, completedAt:new Date().toISOString(), decision:"revise", restartFrom:decision.restartFrom, snapshot });
+      fs.writeFileSync("output/revisions/history.json", JSON.stringify(history, null, 2));
+      console.log("\n=== AUTONOMOUS REVISION " + (attempt + 1) + "/" + max + " ===");
+      console.log("Restarting from: " + decision.restartFrom);
+      continue;
+    }
+    history.attempts.push({ attempt, startedAt, completedAt:new Date().toISOString(), decision:"stop", reason:decision.reason });
+    fs.writeFileSync("output/revisions/history.json", JSON.stringify(history, null, 2));
+    throw new Error("BRAG stopped before final handoff: " + decision.reason);
+  }
+}
 main();

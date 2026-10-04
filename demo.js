@@ -6,6 +6,20 @@ const { applyInteractionToScenes } = require("./cinematography");
 
 function clean(v) { return (v || "").replace(/\s+/g, " ").trim(); }
 
+function loadEvidenceReport() {
+  try { return JSON.parse(fs.readFileSync("output/evidence-report.json", "utf8")); }
+  catch { return null; }
+}
+
+function bindSceneEvidence(scene, report, fields) {
+  if (!report?.claimEvidence) return scene;
+  const evidence = fields.map(field => report.claimEvidence[field]).filter(Boolean);
+  scene.evidence = evidence;
+  scene.evidenceStatus = evidence.some(e => e.status === "unsupported") ? "unsupported"
+    : evidence.some(e => e.status === "partial") ? "partial" : evidence.length ? "supported" : "unverified";
+  return scene;
+}
+
 function productName(url, title) {
   if (title && title.trim()) return title.trim();
   try { return new URL(url).hostname.replace(/^www\./, "").split(".")[0]; }
@@ -20,17 +34,18 @@ function buildDemoPackage(manifest, description = "") {
   const first = states[0];
   const last = states[states.length - 1];
   const realFootage = manifest.realFootage?.file || null;
+  const evidenceReport = loadEvidenceReport();
 
   const scenes = [
-    {
+    bindSceneEvidence({
       id: "hook",
       duration: 4,
       footage: manifest.steps[0]?.screenshot || null,
       narration: narrative.scenes[0]?.text || (description ? clean(description).slice(0, 220) : `${name} is built to solve a specific problem without adding unnecessary complexity.`),
       purpose: "Establish the problem and promise.",
       motion: { type: "slow-zoom", from: 1, to: 1.06 }
-    },
-    {
+    }, evidenceReport, ["problem", "promise"]),
+    bindSceneEvidence({
       id: "product",
       duration: 5,
       footage: realFootage || first?.screenshot || manifest.steps[0]?.screenshot || null,
@@ -38,11 +53,11 @@ function buildDemoPackage(manifest, description = "") {
       narration: narrative.scenes[1]?.text || `Meet ${name}. This is the product in its real environment, not a mockup.`,
       purpose: "Orient the viewer inside the actual product.",
       motion: { type: "static", from: 1, to: 1 }
-    }
+    }, evidenceReport, ["product", "strongestAction"])
   ];
 
   states.slice(0, 3).forEach((state, i) => {
-    scenes.push({
+    scenes.push(bindSceneEvidence({
       id: `workflow-${i + 1}`,
       duration: 7,
       footage: state.screenshot,
@@ -53,10 +68,10 @@ function buildDemoPackage(manifest, description = "") {
       purpose: "Show the real product doing the work.",
       cursor: state.cursor || null,
       motion: { type: i % 2 ? "slow-zoom" : "push-left", from: 1, to: 1.05 }
-    });
+    }, evidenceReport, [`workflow-${i + 1}`]));
   });
 
-  scenes.push({
+  scenes.push(bindSceneEvidence({
     id: "result",
     duration: 6,
     footage: last?.screenshot || first?.screenshot || null,
@@ -64,9 +79,9 @@ function buildDemoPackage(manifest, description = "") {
     narration: narrative.scenes[3]?.text || "The point is the outcome: the user gets from the starting problem to a useful result.",
     purpose: "Make the value visible.",
     motion: { type: "slow-zoom", from: 1.02, to: 1.07 }
-  });
+  }, evidenceReport, ["proof"]));
 
-  scenes.push({
+  scenes.push(bindSceneEvidence({
     id: "close",
     duration: 4,
     footage: last?.screenshot || null,
@@ -74,7 +89,7 @@ function buildDemoPackage(manifest, description = "") {
     narration: `That's ${name}. Show the product, show the workflow, then let the result speak for itself.`,
     purpose: "Close with a product-first call to action.",
     motion: { type: "push-right", from: 1.03, to: 1.08 }
-  });
+  }, evidenceReport, ["strongestAction"]));
 
   return {
     version: "1.9",
@@ -86,6 +101,12 @@ function buildDemoPackage(manifest, description = "") {
     realFootage: manifest.realFootage || null,
     shotPlan: manifest.shotPlan || null,
     narrative,
+    evidence: evidenceReport ? {
+      status: evidenceReport.status,
+      claimCount: evidenceReport.claimCount,
+      unsupportedCount: evidenceReport.unsupportedCount,
+      report: "output/evidence-report.json"
+    } : null,
     footageDirectory: "output/recording",
     next: "Feed this edit decision list into the renderer and TTS layer.",
     formats: ["16:9", "9:16", "1:1"],

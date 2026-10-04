@@ -4,3 +4,4 @@ output/
 *.webm
 *.mp4
 .DS_Store
+.next/

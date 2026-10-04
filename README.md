@@ -299,3 +299,55 @@ BRAG_TEST_LIMIT=10 node product-suite.js --full
 ```
 
 The release target is **8/10 unrelated products passing**. Inspect mode tests evidence extraction and browser reachability. Full mode tests the complete Product → Story → Video pipeline.
+
+## Final production release gate
+
+BRAG now has a release gate that aggregates the evidence produced by the production pipeline instead of relying on a single QA score.
+
+Run:
+
+```bash
+npm run regression
+npm run product-suite
+npm run release-gate
+```
+
+For the full ten-product production matrix:
+
+```bash
+BRAG_TEST_LIMIT=10 node product-suite.js --full
+npm run release-gate
+```
+
+The gate evaluates:
+
+- deterministic regression results
+- required production modules
+- runtime dependencies
+- the 10-product matrix against the **8/10** release target
+- production QA
+- rendered video quality
+- optional narration quality
+- self-evaluation
+- bounded revision safety
+- run-manifest reproducibility
+- final production handoff
+- final package integrity
+
+Status semantics:
+
+- **READY**: release criteria are satisfied by recorded evidence
+- **REVIEW**: evidence is missing or human review remains
+- **FAIL**: a release blocker failed
+
+The gate does not pretend that tests, external product runs, or deployments happened when they did not. It only evaluates evidence that exists under `output/`.
+
+Report:
+
+```
+output/release-gate/report.json
+output/release-gate/README.txt
+```
+
+No deployment is performed by the release gate.
+

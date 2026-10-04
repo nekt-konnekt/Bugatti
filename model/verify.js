@@ -36,7 +36,7 @@ function buildEvidenceUnits() {
   const speech = loadJson("output/speech-intelligence.json");
   if (speech) units.push({ id: "speech:transcript", kind: "speech", source: "output/speech-intelligence.json", text: JSON.stringify(speech) });
 
-  const manifest = loadJson("output/manifest.json");
+  const manifest = loadJson("output/recording/manifest.json") || loadJson("output/manifest.json");
   if (manifest) {
     (manifest.steps || []).filter(s => s.type === "state-captured").forEach((state, i) => {
       units.push({

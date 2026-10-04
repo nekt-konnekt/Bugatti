@@ -1,6 +1,6 @@
 {
   "name": "brag",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "private": true,
   "description": "BRAG product-to-video demo engine",
   "scripts": {
@@ -33,8 +33,9 @@
     "test:capture-recovery": "node capture-recovery.test.js",
     "package-output": "node model/package-output.js",
     "test:cli": "node cli.test.js",
-    "test": "npm run test:revision-loop && npm run test:capture-recovery && npm run test:cli && npm run test:security",
-    "test:security": "node security.test.js"
+    "test": "npm run regression",
+    "test:security": "node security.test.js",
+    "regression": "node regression.js"
   },
   "dependencies": {
     "playwright": "^1.55.0",

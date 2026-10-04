@@ -62,9 +62,10 @@ function buildDemoPackage(manifest, description = "") {
       duration: 7,
       footage: state.screenshot,
       footageType: "state-screenshot",
-      narration: state.headings?.length
-        ? `From here, the important path is ${state.headings.slice(0, 2).join(" and ")}.`
-        : "This is the important step in the user workflow.",
+      narration: narrative.workflow?.[i]?.text
+        || (state.headings?.length
+          ? `Here, the product shows ${state.headings.slice(0, 2).join(" and ")}.`
+          : "This is the next observed step in the user workflow."),
       purpose: "Show the real product doing the work.",
       cursor: state.cursor || null,
       motion: { type: i % 2 ? "slow-zoom" : "push-left", from: 1, to: 1.05 }
@@ -119,7 +120,7 @@ function buildDemoPackage(manifest, description = "") {
       report: "output/evidence-report.json"
     } : null,
     footageDirectory: "output/recording",
-    next: "Feed this edit decision list into the renderer and TTS layer.",
+    next: "Feed this evidence-backed edit decision list into the renderer and TTS layer.",
     formats: ["16:9", "9:16", "1:1"],
     visualLanguage: { cursor: "highlight-click-target", captions: "bottom-safe", transitions: "short-crossfade" }
   };

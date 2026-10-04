@@ -73,7 +73,7 @@ function writeFinalManifest(qaReport) {
   }
 
   fs.writeFileSync(path.join(finalDir, "production.json"), JSON.stringify({
-    version: "2.0",
+    version: "2.1",
     generatedAt: new Date().toISOString(),
     outputs: files.map(file => path.join("output", "final", path.basename(file).replace("brag-demo-", "product-demo-"))),
     qa: qaReport || null
@@ -109,6 +109,17 @@ function main() {
 
   run("EVIDENCE CHECK", "model/verify.js");
   run("EVIDENCE GRAPH", "model/evidence-graph.js");
+
+  const graphPath = "output/evidence-graph.json";
+  if (!fs.existsSync(graphPath)) {
+    throw new Error("Production gate failed: evidence graph was not generated.");
+  }
+  const graph = JSON.parse(fs.readFileSync(graphPath, "utf8"));
+  const requiredClaims = (graph.claims || []).filter(c => ["promise", "strongestAction", "proof"].includes(c.field));
+  const brokenClaims = requiredClaims.filter(c => !c.evidence?.length);
+  if (brokenClaims.length) {
+    throw new Error("Production gate failed: required claims lack captured evidence: " + brokenClaims.map(c => c.field).join(", "));
+  }
 
   const evidencePath = "output/evidence-report.json";
   if (fs.existsSync(evidencePath)) {

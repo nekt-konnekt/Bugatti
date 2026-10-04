@@ -150,7 +150,8 @@ async function runWorkflow(url, options = {}) {
     };
 
     for (let step = 1; step <= maxSteps; step++) {
-      guard.assertTime(); guard.assertOutput(outputDir);\n      const shot = shotPlan.shots[Math.min(step - 1, shotPlan.shots.length - 1)];
+      guard.assertTime(); guard.assertOutput(outputDir);
+      const shot = shotPlan.shots[Math.min(step - 1, shotPlan.shots.length - 1)];
       const targetClaim = claimTargets[shot?.id] || null;
       const actionStartedAt = Date.now(), beforeUrl = page.url();
       const screenshot = "step-" + String(step).padStart(2, "0") + "-before.png";

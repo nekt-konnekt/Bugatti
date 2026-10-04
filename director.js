@@ -85,7 +85,7 @@ function scoreWorkflowStep(text, evidence = {}) {
     ...(evidence.actions || []),
     ...(evidence.links || [])
   ].join(" ").toLowerCase();
-  const terms = [...new Set(value.replace(/[^a-z0-9\\s]/g, " ").split(/\\s+/).filter(x => x.length > 2))];
+  const terms = [...new Set(value.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(x => x.length > 2))];
   return terms.length ? terms.filter(t => corpus.includes(t)).length / terms.length : 0;
 }
 

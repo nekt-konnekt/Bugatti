@@ -60,3 +60,14 @@ Useful environment variables:
 - `PYTHON_BIN`: Python executable, default `python3`
 
 Speech is optional. If no audio exists or faster-whisper is unavailable, BRAG continues with visual and DOM evidence.
+
+
+## Evidence verification
+
+Every AI Director claim is checked against captured product evidence before rendering.
+
+```bash
+npm run verify
+```
+
+The verifier combines deterministic term matching with an optional local Ollama semantic check. The production pipeline stops when too many claims are unsupported. This prevents invented product capabilities or outcomes from reaching the final video.

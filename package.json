@@ -25,7 +25,8 @@
     "transcribe": "node model/transcribe.js",
     "verify": "node model/verify.js",
     "evidence-graph": "node model/evidence-graph.js",
-    "product-suite": "node product-suite.js"
+    "product-suite": "node product-suite.js",
+    "test:revision-loop": "node revision-loop.test.js"
   },
   "dependencies": {
     "playwright": "^1.55.0",

@@ -65,7 +65,8 @@ function writeFinalManifest(qaReport) {
     "storyboard.json": "output/storyboard.json",
     "shot-plan.json": "output/shot-plan.json",
     "evidence-report.json": "output/evidence-report.json",
-    "evidence-graph.json": "output/evidence-graph.json"
+    "evidence-graph.json": "output/evidence-graph.json",
+    "self-evaluation.json": "output/self-evaluation.json"
   };
 
   for (const [name, source] of Object.entries(artifacts)) {
@@ -142,8 +143,17 @@ function main() {
 
   run("RENDER", "render.js", ["output/demo/package.json"]);
   run("QA", "qa.js", ["output/demo/package.json"]);
+  run("SELF-EVALUATE", "model/self-evaluate.js", ["output/demo/package.json"]);
 
   const qaPath = "output/qa/report.json";
+  const selfEvalPath = "output/self-evaluation.json";
+  const selfEvaluation = fs.existsSync(selfEvalPath)
+    ? JSON.parse(fs.readFileSync(selfEvalPath, "utf8"))
+    : null;
+  if (selfEvaluation?.status === "fail") {
+    console.error("\nBRAG stopped before final handoff because self-evaluation found a production weakness.");
+    process.exit(4);
+  }
   const qa = fs.existsSync(qaPath) ? JSON.parse(fs.readFileSync(qaPath, "utf8")) : null;
   if (qa && qa.status === "fail") {
     console.error("\nBRAG stopped before final handoff because QA failed.");

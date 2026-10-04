@@ -39,7 +39,18 @@ async function visibleActions(page) {
   );
 }
 
-function directorScore(action, intelligence) {
+function claimTerms(claim) {
+  return [...new Set(String(claim || "").toLowerCase().replace(/[^a-z0-9\\s]/g, " ").split(/\\s+/).filter(x => x.length > 2))];
+}
+
+function actionClaimScore(action, claim) {
+  const terms = claimTerms(claim);
+  const text = String(action.text || "").toLowerCase();
+  if (!terms.length) return 0;
+  return terms.filter(term => text.includes(term)).length / terms.length;
+}
+
+function directorScore(action, intelligence, targetClaim = "") {
   if (BLOCKED.test(action.text)) return -1000;
   const text = action.text;
   if (action.type === "submit") return -800;
@@ -47,6 +58,7 @@ function directorScore(action, intelligence) {
   let score = SAFE.test(text) ? 50 : 0;
   if (priority.test(text)) score += 30;
   if (intelligence?.strongestAction && text.toLowerCase() === intelligence.strongestAction.toLowerCase()) score += 100;
+  if (targetClaim) score += Math.round(actionClaimScore(action, targetClaim) * 80);
   if (intelligence?.archetype === "game" && /play|start/i.test(text)) score += 35;
   if (intelligence?.archetype === "commerce" && /order|explore|start/i.test(text)) score += 25;
   if (intelligence?.archetype === "creation-workflow" && /create|start|try/i.test(text)) score += 25;
@@ -95,8 +107,19 @@ async function runWorkflow(url, options = {}) {
     intelligence.origin = origin;
     const shotPlan = buildShotPlan(intelligence);
 
+    const claimTargets = [
+      ["problem", intelligence.problem],
+      ["promise", intelligence.promise],
+      ["strongestAction", intelligence.strongestAction],
+      ["workflow-1", intelligence.workflow?.[0]],
+      ["workflow-2", intelligence.workflow?.[1]],
+      ["workflow-3", intelligence.workflow?.[2]],
+      ["proof", intelligence.proof]
+    ].filter(([, claim]) => claim);
+
     for (let step = 1; step <= maxSteps; step++) {
       const shot = shotPlan.shots[Math.min(step - 1, shotPlan.shots.length - 1)];
+      const targetClaim = claimTargets[Math.min(step - 1, claimTargets.length - 1)] || null;
       const actionStartedAt = Date.now();
       const beforeUrl = page.url();
       const screenshot = `step-${String(step).padStart(2, "0")}-before.png`;
@@ -104,7 +127,7 @@ async function runWorkflow(url, options = {}) {
 
       const actions = await visibleActions(page);
       const candidates = actions
-        .map(a => ({ ...a, score: directorScore(a, intelligence) }))
+        .map(a => ({ ...a, score: directorScore(a, intelligence, targetClaim?.[1]) }))
         .filter(a => a.score > 0)
         .sort((a,b) => b.score - a.score || a.y - b.y);
 
@@ -126,8 +149,10 @@ async function runWorkflow(url, options = {}) {
           archetype: intelligence.archetype,
           promise: intelligence.promise,
           strongestAction: intelligence.strongestAction,
+          targetClaim: targetClaim ? { field: targetClaim[0], text: targetClaim[1] } : null,
           score: target.score
         },
+        claim: targetClaim ? { field: targetClaim[0], text: targetClaim[1] } : null,
         shot: shot ? {
           id: shot.id,
           type: shot.type,
@@ -188,6 +213,7 @@ async function runWorkflow(url, options = {}) {
       const cursor = { x: target.x + target.width / 2, y: target.y + target.height / 2 };
       const state = {
         step, type: "state-captured", timestamp: new Date().toISOString(), url: afterUrl, urlChanged: beforeUrl !== afterUrl,
+        claim: targetClaim ? { field: targetClaim[0], text: targetClaim[1] } : null,
         shot: shot ? { id: shot.id, type: shot.type, goal: shot.goal } : null,
         title: await page.title(), headings: headings.map(clean).filter(Boolean).slice(0,8),
         screenshot: afterScreenshot, cursor, elapsedMs: Date.now() - actionStartedAt
@@ -203,7 +229,7 @@ async function runWorkflow(url, options = {}) {
       if (state.evaluation?.decision === "replan") {
         const freshActions = await visibleActions(page);
         const alternatives = freshActions
-          .map(a => ({ ...a, score: directorScore(a, intelligence) }))
+          .map(a => ({ ...a, score: directorScore(a, intelligence, targetClaim?.[1]) }))
           .filter(a => a.score > 0)
           .sort((a,b) => b.score - a.score || a.y - b.y);
         const alternative = alternatives.find(a => !visited.has(`${page.url()}|${a.text}|${a.href || ""}`));
@@ -214,6 +240,7 @@ async function runWorkflow(url, options = {}) {
             timestamp: new Date().toISOString(),
             from: target.text,
             to: alternative.text,
+            claim: targetClaim ? { field: targetClaim[0], text: targetClaim[1] } : null,
             reason: state.evaluation.reason
           });
         } else {
@@ -224,11 +251,12 @@ async function runWorkflow(url, options = {}) {
     }
 
     const manifest = {
-      version: "1.6",
+      version: "1.7",
       source: url,
       capturedAt: new Date().toISOString(),
       maxSteps,
       director: intelligence,
+      claimTargets,
       shotPlan,
       steps,
       elapsedMs: Date.now() - startedAt,

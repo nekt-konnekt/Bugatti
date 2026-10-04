@@ -11,8 +11,12 @@ const tests=[
 const results=[];
 for(const [file,args] of tests){
   const started=Date.now();
-  const r=execFileSync(process.execPath,[file,...args],{encoding:"utf8",stdio:["ignore","pipe","pipe"]});
-  results.push({test:file,status:"pass",elapsedMs:Date.now()-started,output:r.trim().slice(-1000)});
+  try {
+    const r=execFileSync(process.execPath,[file,...args],{encoding:"utf8",stdio:["ignore","pipe","pipe"]});
+    results.push({test:file,status:"pass",elapsedMs:Date.now()-started,output:r.trim().slice(-1000)});
+  } catch(error) {
+    results.push({test:file,status:"fail",elapsedMs:Date.now()-started,output:String(error.stdout||"").slice(-1000),error:String(error.stderr||error.message).slice(-1000)});
+  }
 }
 const requiredFiles=[
   "brag.js","capture.js","runner.js","director.js","demo.js","edit-plan.js","render.js","qa.js",
@@ -23,7 +27,7 @@ const missing=requiredFiles.filter(file=>!fs.existsSync(path.join(__dirname,file
 const report={
   version:"1.0",
   generatedAt:new Date().toISOString(),
-  status:missing.length?"fail":"pass",
+  status:(missing.length||results.some(x=>x.status==="fail"))?"fail":"pass",
   summary:{tests:results.length,passed:results.length,missingFiles:missing.length},
   tests:results,
   missingFiles:missing,
@@ -32,4 +36,4 @@ const report={
 fs.mkdirSync(path.join("output","regression"),{recursive:true});
 fs.writeFileSync(path.join("output","regression","report.json"),JSON.stringify(report,null,2));
 console.log(JSON.stringify(report,null,2));
-if(missing.length)process.exitCode=1;
+if(missing.length||results.some(x=>x.status==="fail"))process.exitCode=1;

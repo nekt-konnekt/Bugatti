@@ -36,7 +36,7 @@ function buildDemoPackage(manifest, description = "") {
   const realFootage = manifest.realFootage?.file || null;
   const evidenceReport = loadEvidenceReport();
 
-  const scenes = [
+  let scenes = [
     bindSceneEvidence({
       id: "hook",
       duration: 4,
@@ -91,8 +91,19 @@ function buildDemoPackage(manifest, description = "") {
     motion: { type: "push-right", from: 1.03, to: 1.08 }
   }, evidenceReport, ["strongestAction"]));
 
+  scenes = applyInteractionToScenes(scenes, states).map((scene) => ({
+    ...scene,
+    motion: scene.evidenceStatus === "unsupported"
+      ? { type: "static", from: 1, to: 1 }
+      : scene.id === "result"
+        ? { type: "slow-zoom", from: 1.01, to: 1.08 }
+        : scene.id === "product"
+          ? { type: "static", from: 1, to: 1 }
+          : scene.motion
+  }));
+
   return {
-    version: "1.9",
+    version: "2.0",
     product: name,
     source: manifest.source,
     generatedAt: new Date().toISOString(),

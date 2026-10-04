@@ -131,7 +131,8 @@ async function runWorkflow(url, options = {}) {
         .filter(a => a.score > 0)
         .sort((a,b) => b.score - a.score || a.y - b.y);
 
-      const target = candidates.find(a => !visited.has(`${page.url()}|${a.text}|${a.href || ""}`));
+      const target = (preferredActionKey ? candidates.find(a => `${page.url()}|${a.text}|${a.href || ""}` === preferredActionKey) : null) || candidates.find(a => !visited.has(`${page.url()}|${a.text}|${a.href || ""}`));
+      preferredActionKey = null;
       if (!target) {
         steps.push({ step, type: "stop", timestamp: new Date().toISOString(), reason: "No new director-approved safe action found", url: page.url(), screenshot });
         break;
@@ -222,6 +223,7 @@ async function runWorkflow(url, options = {}) {
       steps.push(state);
 
       if (state.evaluation?.decision === "hold-result") {
+        state.evidence = { claim: targetClaim ? { field: targetClaim[0], text: targetClaim[1] } : null, captured: Boolean(state.evaluation?.proof), source: state.screenshot || null };
         steps.push({ step, type: "director-hold", reason: state.evaluation.reason });
         break;
       }
@@ -241,8 +243,10 @@ async function runWorkflow(url, options = {}) {
             from: target.text,
             to: alternative.text,
             claim: targetClaim ? { field: targetClaim[0], text: targetClaim[1] } : null,
-            reason: state.evaluation.reason
+            reason: state.evaluation.reason,
+            actionScore: alternative.score
           });
+          preferredActionKey = `${page.url()}|${alternative.text}|${alternative.href || ""}`;
         } else {
           steps.push({ step, type: "replan-stop", reason: "No alternate safe action available." });
           break;

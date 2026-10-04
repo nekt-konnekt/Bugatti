@@ -12,98 +12,152 @@ function normalize(text) {
 }
 
 function terms(text) {
-  return normalize(text).split(" ").filter(x => x.length > 2 && !STOPWORDS.has(x));
+  return [...new Set(normalize(text).split(" ").filter(x => x.length > 2 && !STOPWORDS.has(x)))];
 }
 
-function corpusFromEvidence() {
-  const parts = [];
-  for (const file of ["output/inspection.json", "output/storyboard.json", "output/manifest.json", "output/visual-intelligence.json", "output/speech-intelligence.json"]) {
-    try {
-      const data = JSON.parse(fs.readFileSync(file, "utf8"));
-      parts.push(JSON.stringify(data));
-    } catch {}
+function loadJson(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; }
+}
+
+function buildEvidenceUnits() {
+  const units = [];
+  const inspection = loadJson("output/inspection.json");
+  if (inspection) {
+    units.push({ id: "inspection:homepage", kind: "dom", source: "output/inspection.json",
+      text: JSON.stringify({
+        title: inspection.title, description: inspection.description,
+        headings: inspection.headings, buttons: inspection.buttons, links: inspection.links
+      }) });
   }
-  return normalize(parts.join(" "));
+
+  const visual = loadJson("output/visual-intelligence.json");
+  if (visual) units.push({ id: "visual:homepage", kind: "visual", source: "output/visual-intelligence.json", text: JSON.stringify(visual) });
+
+  const speech = loadJson("output/speech-intelligence.json");
+  if (speech) units.push({ id: "speech:transcript", kind: "speech", source: "output/speech-intelligence.json", text: JSON.stringify(speech) });
+
+  const manifest = loadJson("output/manifest.json");
+  if (manifest) {
+    (manifest.steps || []).filter(s => s.type === "state-captured").forEach((state, i) => {
+      units.push({
+        id: `capture:step-${String(state.step || i + 1).padStart(2, "0")}`,
+        kind: "browser-state",
+        source: state.screenshot || "output/manifest.json",
+        text: JSON.stringify({ url: state.url, title: state.title, headings: state.headings, evaluation: state.evaluation, shot: state.shot })
+      });
+    });
+  }
+
+  return units;
 }
 
-function deterministicClaimCheck(claim, evidence) {
-  const wanted = [...new Set(terms(claim))];
-  if (!wanted.length) return { supported: false, score: 0, matched: [] };
-  const matched = wanted.filter(term => evidence.includes(term));
-  const score = matched.length / wanted.length;
-  return { supported: score >= 0.5, score: Number(score.toFixed(3)), matched };
+function deterministicClaimCheck(claim, units) {
+  const wanted = terms(claim);
+  if (!wanted.length) return { supported: false, score: 0, evidence: [] };
+
+  const matches = units.map(unit => {
+    const corpus = normalize(unit.text);
+    const matched = wanted.filter(term => corpus.includes(term));
+    return { unit, matched, score: matched.length / wanted.length };
+  }).filter(x => x.matched.length).sort((a,b) => b.score - a.score);
+
+  const best = matches[0];
+  return {
+    supported: Boolean(best && best.score >= 0.5),
+    score: Number((best?.score || 0).toFixed(3)),
+    evidence: matches.slice(0, 3).map(x => ({
+      id: x.unit.id,
+      kind: x.unit.kind,
+      source: x.unit.source,
+      matched: x.matched,
+      score: Number(x.score.toFixed(3))
+    }))
+  };
 }
 
-async function verifyWithLocalModel(claims, evidence) {
+async function verifyWithLocalModel(claims, units) {
   if (!(await isAvailable())) return null;
+  const compactEvidence = units.map(u => ({ id: u.id, kind: u.kind, text: u.text.slice(0, 3500) }));
   return generate({
     model: DEFAULT_MODEL,
     system: `You are BRAG's evidence verifier.
-You receive claims generated for a product demo and observed evidence from the product.
-For every claim, decide whether the evidence directly supports it.
-Do not reward plausible guesses. A claim is supported only when the evidence contains direct or clearly equivalent support.
+Map every product-demo claim to observed evidence units.
+A claim is supported only when an evidence unit directly supports it.
 Return JSON only:
-{"claims":[{"claim":"...","supported":true,"reason":"...","evidence":["..."]}]}`,
-    prompt: JSON.stringify({ claims, evidence: evidence.slice(0, 18000) })
+{"claims":[{"field":"...","claim":"...","status":"supported|partial|unsupported","evidence":["unit-id"],"reason":"..."}]}
+Never invent evidence. If evidence is ambiguous, use partial.`,
+    prompt: JSON.stringify({ claims, evidence: compactEvidence })
   });
 }
 
-async function run(inputPath = "output/ai-intelligence.json", outputPath = "output/evidence-report.json") {
-  if (!fs.existsSync(inputPath)) {
-    console.log("No AI intelligence found. Evidence verification skipped.");
-    return null;
-  }
-
-  const intelligence = JSON.parse(fs.readFileSync(inputPath, "utf8"));
-  const claims = [
+function buildClaims(intelligence) {
+  return [
     ["product", intelligence.product],
     ["problem", intelligence.problem],
     ["user", intelligence.user],
     ["promise", intelligence.promise],
     ["strongestAction", intelligence.strongestAction],
     ["proof", intelligence.proof],
-    ...((intelligence.workflow || []).slice(0, 3).map((x, i) => ["workflow-" + (i + 1), x]))
+    ...((intelligence.workflow || []).slice(0, 3).map((x, i) => [`workflow-${i + 1}`, x]))
   ].filter(([, value]) => value && String(value).trim());
+}
 
-  const evidence = corpusFromEvidence();
+async function run(inputPath = "output/ai-intelligence.json", outputPath = "output/evidence-report.json") {
+  const intelligence = loadJson(inputPath);
+  if (!intelligence) {
+    console.log("No AI intelligence found. Evidence verification skipped.");
+    return null;
+  }
+
+  const units = buildEvidenceUnits();
+  const claims = buildClaims(intelligence);
   const deterministic = claims.map(([field, claim]) => ({
-    field,
-    claim,
-    ...deterministicClaimCheck(claim, evidence)
+    field, claim, ...deterministicClaimCheck(claim, units)
   }));
 
   let model = null;
   try {
-    model = await verifyWithLocalModel(claims.map(([field, claim]) => ({ field, claim })), evidence);
-  } catch (error) {
+    model = await verifyWithLocalModel(claims.map(([field, claim]) => ({ field, claim })), units);
+  } catch {
     console.log("Local evidence verifier unavailable. Using deterministic verification.");
   }
 
   const results = deterministic.map(item => {
-    const modelItem = model?.claims?.find(x => x.claim === item.claim);
+    const modelItem = model?.claims?.find(x => x.field === item.field || x.claim === item.claim);
+    const modelStatus = modelItem?.status || null;
     return {
       ...item,
-      modelSupported: typeof modelItem?.supported === "boolean" ? modelItem.supported : null,
+      modelStatus,
       modelReason: modelItem?.reason || null,
-      modelEvidence: Array.isArray(modelItem?.evidence) ? modelItem.evidence.slice(0, 3) : []
+      modelEvidence: Array.isArray(modelItem?.evidence) ? modelItem.evidence : []
     };
   });
 
-  const supported = results.filter(x => x.supported);
-  const unsupported = results.filter(x => !x.supported);
-  const status = unsupported.length === 0 ? "pass" : supported.length >= Math.ceil(results.length * 0.7) ? "review" : "fail";
+  const unsupported = results.filter(x => x.modelStatus === "unsupported" || (!x.modelStatus && !x.supported));
+  const partial = results.filter(x => x.modelStatus === "partial");
+  const status = unsupported.length === 0
+    ? (partial.length ? "review" : "pass")
+    : supportedRatio(results, unsupported) >= 0.7 ? "review" : "fail";
+
+  const claimEvidence = Object.fromEntries(results.map(x => [
+    x.field,
+    { claim: x.claim, status: x.modelStatus || (x.supported ? "supported" : "unsupported"),
+      evidence: x.modelEvidence.length ? x.modelEvidence : x.evidence.map(e => e.id) }
+  ]));
 
   const report = {
-    version: "1.0",
+    version: "2.0",
     engine: model ? "deterministic+ollama" : "deterministic",
     model: model ? DEFAULT_MODEL : null,
     generatedAt: new Date().toISOString(),
     status,
     claimCount: results.length,
-    supportedCount: supported.length,
+    supportedCount: results.length - unsupported.length - partial.length,
+    partialCount: partial.length,
     unsupportedCount: unsupported.length,
     claims: results,
-    rule: "Unsupported product claims must not reach the final narration."
+    claimEvidence,
+    rule: "Every narration claim should have a provenance path to captured product evidence."
   };
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -113,6 +167,10 @@ async function run(inputPath = "output/ai-intelligence.json", outputPath = "outp
   return report;
 }
 
+function supportedRatio(results, unsupported) {
+  return results.length ? (results.length - unsupported.length) / results.length : 0;
+}
+
 if (require.main === module) {
   run().catch(error => {
     console.error("Evidence verification failed:", error.message);
@@ -120,4 +178,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { run, deterministicClaimCheck };
+module.exports = { run, deterministicClaimCheck, buildEvidenceUnits, buildClaims };

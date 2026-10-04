@@ -10,7 +10,7 @@ const {validateTarget,resourceConfig}=require("./model/security");
 const PORT=process.env.PORT||4173;
 const root=__dirname;
 const CONFIG=resourceConfig();
-const MAX_BODY=64*1024;
+const MAX_BODY=12*1024*1024;
 const mime={".html":"text/html",".js":"text/javascript",".css":"text/css",".json":"application/json",".png":"image/png"};
 
 function send(res,status,payload){
@@ -25,7 +25,27 @@ function readBody(req){
     req.on("error",reject);
   });
 }
-async function inspect(url){
+async function saveScreenshots(screenshots=[]){
+  if (!Array.isArray(screenshots)) return [];
+  if (screenshots.length > 6) throw new Error("Maximum 6 screenshots allowed.");
+  const dir=path.join(root,"output","input-screenshots");
+  fs.mkdirSync(dir,{recursive:true});
+  const saved=[];
+  for(let i=0;i<screenshots.length;i++){
+    const item=screenshots[i]||{};
+    if(typeof item.data!=="string"||!/^data:image\/(png|jpeg);base64,/i.test(item.data)) throw new Error("Screenshots must be PNG or JPG images.");
+    const raw=item.data.split(",")[1]||"";
+    const bytes=Buffer.from(raw,"base64");
+    if(bytes.length>5*1024*1024) throw new Error("Each screenshot must be 5 MB or smaller.");
+    const ext=/^data:image\/png/i.test(item.data)?".png":".jpg";
+    const file=`screenshot-${i+1}${ext}`;
+    fs.writeFileSync(path.join(dir,file),bytes);
+    saved.push({name:String(item.name||file).slice(0,120),path:path.join("output","input-screenshots",file),bytes:bytes.length});
+  }
+  return saved;
+}
+
+async function inspect(url, screenshots=[]){
   await validateTarget(url);
   const browser=await chromium.launch({headless:true});
   const page=await browser.newPage({viewport:{width:1440,height:900}});
@@ -41,7 +61,8 @@ async function inspect(url){
       headings:await page.locator("h1,h2,h3").allTextContents(),
       buttons:await page.locator("button,[role=button],input[type=submit]").evaluateAll(els=>els.slice(0,30).map(el=>({text:(el.innerText||el.value||el.getAttribute("aria-label")||"").trim()})).filter(x=>x.text)),
       links:await page.locator("a").evaluateAll(as=>as.slice(0,40).map(a=>({text:(a.innerText||"").trim(),href:a.href})).filter(x=>x.text||x.href)),
-      consoleErrors:errors
+      consoleErrors:errors,
+      screenshots
     };
   }finally{await browser.close();}
 }
@@ -57,7 +78,8 @@ const server=http.createServer(async(req,res)=>{
     }
     if(req.method==="POST"&&req.url==="/api/inspect"){
       const body=JSON.parse(await readBody(req)||"{}");
-      const inspection=await inspect(body.url);
+      const screenshots=await saveScreenshots(body.screenshots);
+      const inspection=await inspect(body.url,screenshots);
       return send(res,200,{inspection,storyboard:buildStoryboard(inspection)});
     }
     if(req.method==="POST"&&req.url==="/api/produce"){

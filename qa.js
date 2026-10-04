@@ -60,6 +60,27 @@ else add("edit-plan", "warning", "Edit plan is missing.", "Run npm run edit-plan
 if (exists(audioManifestPath)) audioManifest = JSON.parse(fs.readFileSync(audioManifestPath, "utf8"));
 
 const scenes = Array.isArray(pkg.scenes) ? pkg.scenes : [];
+const evidenceReportPath = path.join(outputRoot, "evidence-report.json");
+const evidenceGraphPath = path.join(outputRoot, "evidence-graph.json");
+const evidenceReport = exists(evidenceReportPath) ? JSON.parse(fs.readFileSync(evidenceReportPath, "utf8")) : null;
+const evidenceGraph = exists(evidenceGraphPath) ? JSON.parse(fs.readFileSync(evidenceGraphPath, "utf8")) : null;
+
+if (!evidenceReport) add("evidence-report", "fail", "Evidence report is missing.", "Production claims cannot be traced without the report.");
+else if (evidenceReport.status === "fail") add("evidence-report", "fail", "Evidence verification failed.", `${evidenceReport.unsupportedCount || 0} unsupported claim(s).`);
+else if (evidenceReport.status === "review") add("evidence-report", "warning", "Evidence verification requires review.");
+else add("evidence-report", "pass", "Evidence verification passed.");
+
+if (!evidenceGraph) add("evidence-graph", "fail", "Evidence graph is missing.", "Claim-to-shot provenance cannot be verified.");
+else {
+  const requiredClaims = (evidenceGraph.claims || []).filter(c => ["promise", "strongestAction", "proof"].includes(c.field));
+  const broken = requiredClaims.filter(c => !c.evidence?.length);
+  const explicitBindings = evidenceGraph.binding?.explicitClaimStateCount || 0;
+  if (broken.length) add("evidence-provenance", "fail", "Required claims have no captured evidence.", broken.map(c => c.field).join(", "));
+  else if (!explicitBindings) add("evidence-provenance", "warning", "No explicit claim-to-state bindings were captured.");
+  else add("evidence-provenance", "pass", "Required claims resolve to captured evidence.", `${explicitBindings} explicit state binding(s).`);
+}
+
+
 const states = manifest?.steps?.filter(s => s.type === "state-captured") || [];
 
 if (!scenes.length) add("scenes", "fail", "Demo package contains no scenes.");

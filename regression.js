@@ -28,7 +28,7 @@ const report={
   version:"1.0",
   generatedAt:new Date().toISOString(),
   status:(missing.length||results.some(x=>x.status==="fail"))?"fail":"pass",
-  summary:{tests:results.length,passed:results.length,missingFiles:missing.length},
+  summary:{tests:results.length,passed:results.filter(x=>x.status==="pass").length,failed:results.filter(x=>x.status==="fail").length,missingFiles:missing.length},
   tests:results,
   missingFiles:missing,
   rule:"Regression checks verify deterministic utility behavior and required production modules. External product availability is measured separately by product-suite.js."

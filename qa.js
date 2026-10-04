@@ -235,8 +235,7 @@ const md = [
   "## Release rule",
   "",
   "A **fail** means BRAG should not hand off the MP4 as production-ready. Warnings require judgment. A clean QA report still requires a human watch-through."
-].join("
-");
+].join("\n");
 
 fs.writeFileSync(path.join(qaDir, "report.json"), JSON.stringify(report, null, 2));
 fs.writeFileSync(path.join(qaDir, "report.md"), md);

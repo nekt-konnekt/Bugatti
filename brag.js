@@ -99,6 +99,7 @@ function main() {
 
   run("INSPECT", "capture.js", [url]);
   run("VISUAL DIRECTOR", "model/vision.js");
+  run("SPEECH DIRECTOR", "model/transcribe.js");
   run("AI DIRECTOR", "model/director.js");
   run("DIRECT", "director.js");
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 type Scene = { label: string; title: string; duration: string; status: string };
 
@@ -22,6 +22,8 @@ export default function Home() {
   const [selected, setSelected] = useState(2);
   const [inspection, setInspection] = useState<any>(null);
   const [error, setError] = useState("");
+  const [screenshots, setScreenshots] = useState<{ name: string; data: string }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const productName = useMemo(() => {
     try { return new URL(url).hostname.replace(/^www\./, "").split(".")[0]; }
@@ -39,11 +41,26 @@ export default function Home() {
     return data;
   }
 
+  function addScreenshots(files: FileList | null) {
+    if (!files) return;
+    const valid = Array.from(files).filter(file => /^(image\/png|image\/jpeg)$/i.test(file.type));
+    Promise.all(valid.map(file => new Promise<{ name: string; data: string }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, data: String(reader.result) });
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    }))).then(items => setScreenshots(prev => [...prev, ...items].slice(0, 6))).catch(() => setError("Could not read one or more screenshots."));
+  }
+
+  function removeScreenshot(index: number) {
+    setScreenshots(prev => prev.filter((_, i) => i !== index));
+  }
+
   async function buildStory() {
     setStage("inspecting");
     setError("");
     try {
-      const data = await engineRequest("/api/inspect", { url });
+      const data = await engineRequest("/api/inspect", { url, screenshots });
       setInspection(data.inspection);
       const intelligence = data.storyboard?.intelligence;
       const generatedScenes: Scene[] = [
@@ -109,7 +126,11 @@ export default function Home() {
           <div className="section-head"><span>01</span><h2>Give BRAG the product</h2></div>
           <label>Product URL<input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yourproduct.com" /></label>
           <label>What does it do?<textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the product, problem, and user." rows={5}/></label>
-          <div className="dropzone"><strong>+ Add screenshots</strong><span>PNG, JPG · optional</span></div>
+          <input ref={fileInputRef} className="screenshot-input" type="file" accept="image/png,image/jpeg" multiple onChange={e => { addScreenshots(e.target.files); e.currentTarget.value = ""; }} />
+          <button type="button" className="dropzone" onClick={() => fileInputRef.current?.click()} aria-label="Add screenshots">
+            <strong>+ Add screenshots</strong><span>PNG, JPG · optional</span>
+          </button>
+          {screenshots.length > 0 && <div className="screenshot-list">{screenshots.map((shot, i) => <div className="screenshot-item" key={`${shot.name}-${i}`}><img src={shot.data} alt={shot.name} /><span title={shot.name}>{shot.name}</span><button type="button" onClick={() => removeScreenshot(i)} aria-label={`Remove ${shot.name}`}>×</button></div>)}</div>}
           <button className="primary" onClick={buildStory} disabled={!url || stage === "inspecting"}>
             {stage === "inspecting" ? "Inspecting product..." : "Build demo story"}
           </button>

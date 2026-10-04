@@ -37,7 +37,7 @@ const scenes = pkg.scenes
   .filter(Boolean);
 
 const plan = {
-  version: "2.1",
+  version: "2.2",
   product: pkg.product,
   source: pkg.source,
   editedAt: new Date().toISOString(),
@@ -61,6 +61,9 @@ const plan = {
     narration: scene.narration,
     purpose: scene.purpose,
     motion: scene.motion || { type: "static", from: 1, to: 1 },
+    interaction: scene.interaction || null,
+    evidenceStatus: scene.evidenceStatus || "unverified",
+    evidence: scene.evidence || [],
     cursor: scene.cursor || null,
     overlays: {
       caption: global.captions !== false,

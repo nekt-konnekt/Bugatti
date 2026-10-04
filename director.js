@@ -57,7 +57,7 @@ function buildIntelligence(inspection) {
   const aiArchetype = /^(product|ai-workflow|data-workflow|commerce|creation-workflow|game)$/.test(ai?.archetype || "") ? ai.archetype : null;
 
   return {
-    version: "1.0",
+    version: "1.1",
     product: clean(ai?.product) || clean(inspection.title) || "Untitled product",
     promise: clean(ai?.promise || promise).slice(0, 240),
     problem: clean(ai?.problem),
@@ -77,9 +77,29 @@ function buildIntelligence(inspection) {
   };
 }
 
+function scoreWorkflowStep(text, evidence = {}) {
+  const value = clean(text).toLowerCase();
+  if (!value) return 0;
+  const corpus = [
+    ...(evidence.headings || []),
+    ...(evidence.actions || []),
+    ...(evidence.links || [])
+  ].join(" ").toLowerCase();
+  const terms = [...new Set(value.replace(/[^a-z0-9\\s]/g, " ").split(/\\s+/).filter(x => x.length > 2))];
+  return terms.length ? terms.filter(t => corpus.includes(t)).length / terms.length : 0;
+}
+
+function rankWorkflow(workflow, evidence) {
+  return (workflow || []).map((step, index) => ({
+    step: clean(step),
+    index,
+    evidenceScore: Number(scoreWorkflowStep(step, evidence).toFixed(3))
+  })).sort((a, b) => b.evidenceScore - a.evidenceScore || a.index - b.index).map(x => x.step);
+}
+
 function buildShotPlan(intelligence) {
   const archetype = intelligence.archetype;
-  const workflow = intelligence.workflow || [];
+  const workflow = rankWorkflow(intelligence.workflow || [], intelligence.evidence || []);
   const shots = [
     { id: "establish", type: "establish", duration: 3, goal: "Show the real product clearly before interaction.", action: null },
     { id: "primary-action", type: "interaction", duration: 4, goal: workflow[0] || "Start the primary experience.", action: intelligence.strongestAction },
@@ -106,6 +126,7 @@ function buildShotPlan(intelligence) {
   return {
     version: "1.0",
     strategy: "director-shot-plan",
+    selection: "Evidence-ranked workflow steps preserve the strongest observed path first.",
     shots,
     safety: "Shots may guide capture but never override runner safety policy."
   };

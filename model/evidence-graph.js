@@ -85,7 +85,7 @@ function buildGraph() {
   const unsupportedRequired = required.filter(c => c.status === "unsupported" || !c.evidence.length);
 
   return {
-    version: "1.0",
+    version: "1.1",
     generatedAt: new Date().toISOString(),
     status: unsupportedRequired.length ? "review" : "pass",
     binding: {

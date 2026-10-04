@@ -41,11 +41,20 @@ function readVisualEvidence() {
   }
 }
 
+function readSpeechEvidence() {
+  try {
+    return JSON.parse(fs.readFileSync("output/speech-intelligence.json", "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 async function buildAIDirector(inspection) {
   if (!(await isAvailable())) return null;
   const evidence = {
     ...evidenceFromInspection(inspection),
-    visual: readVisualEvidence()
+    visual: readVisualEvidence(),
+    speech: readSpeechEvidence()
   };
   return generate({
     system: SYSTEM,
@@ -69,6 +78,7 @@ async function run(inspectionPath = "output/inspection.json", outputPath = "outp
     generatedAt: new Date().toISOString(),
     evidenceUrl: inspection.url,
     visualEvidence: Boolean(readVisualEvidence()),
+    speechEvidence: Boolean(readSpeechEvidence()),
     ...result
   }, null, 2));
   console.log("Local AI Director:", outputPath);

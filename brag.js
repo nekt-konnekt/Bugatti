@@ -98,6 +98,7 @@ function main() {
   fs.mkdirSync("output", { recursive: true });
 
   run("INSPECT", "capture.js", [url]);
+  run("VISUAL DIRECTOR", "model/vision.js");
   run("AI DIRECTOR", "model/director.js");
   run("DIRECT", "director.js");
 

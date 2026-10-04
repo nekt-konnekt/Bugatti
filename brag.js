@@ -102,6 +102,7 @@ function main() {
   run("SPEECH DIRECTOR", "model/transcribe.js");
   run("AI DIRECTOR", "model/director.js");
   run("DIRECT", "director.js");
+  run("EVIDENCE CHECK", "model/verify.js");
 
   run("CAPTURE", "runner.js", [url, maxSteps]);
 

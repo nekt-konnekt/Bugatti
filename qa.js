@@ -92,8 +92,14 @@ else if (states.length === 1) add("workflow", "warning", "Only one workflow stat
 else add("workflow", "pass", "Workflow captured multiple product states.", `${states.length} states detected.`);
 
 const captureHealth = manifest?.captureHealth || null;
-if (captureHealth) {\n  if (captureHealth.pageCrashed) add("capture-health", "fail", "Browser page crashed during capture.");\n  else if (captureHealth.actionFailures) add("capture-health", "warning", "One or more browser actions required recovery.", `${captureHealth.actionFailures} action failure(s).`);\n  else add("capture-health", "pass", "Capture health checks completed.");\n  if (captureHealth.recordingValid === false) add("recording-health", "fail", "Browser recording was not validated.");
-}\n\nconst errors = manifest?.consoleErrors || [];
+if (captureHealth) {
+  if (captureHealth.pageCrashed) add("capture-health", "fail", "Browser page crashed during capture.");
+  else if (captureHealth.actionFailures) add("capture-health", "warning", "One or more browser actions required recovery.", `${captureHealth.actionFailures} action failure(s).`);
+  else add("capture-health", "pass", "Capture health checks completed.");
+  if (captureHealth.recordingValid === false) add("recording-health", "fail", "Browser recording was not validated.");
+}
+
+const errors = manifest?.consoleErrors || [];
 if (errors.length) add("console-errors", "warning", "Browser console errors were captured.", `${errors.length} error(s) recorded.`);
 else add("console-errors", "pass", "No browser console errors were recorded.");
 
@@ -229,7 +235,8 @@ const md = [
   "## Release rule",
   "",
   "A **fail** means BRAG should not hand off the MP4 as production-ready. Warnings require judgment. A clean QA report still requires a human watch-through."
-].join("\n");
+].join("
+");
 
 fs.writeFileSync(path.join(qaDir, "report.json"), JSON.stringify(report, null, 2));
 fs.writeFileSync(path.join(qaDir, "report.md"), md);

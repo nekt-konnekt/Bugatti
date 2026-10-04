@@ -20,12 +20,33 @@ function production(url,steps,description){
   return{qa:json("output/qa/report.json"),evaluation:json("output/self-evaluation.json"),plan:loadPlan(),narration:json("output/demo/narration-quality.json"),video:json("output/qa/video-quality.json")};
 }
 function finalOutputs(){return["16x9","9x16","1x1"].map(k=>path.join("output","render","brag-demo-"+k+".mp4"));}
-function handoff(qa,history){const dir="output/final";fs.mkdirSync(dir,{recursive:true});for(const f of finalOutputs()){if(!fs.existsSync(f)||!fs.statSync(f).size)throw new Error("Missing final render: "+f);fs.copyFileSync(f,path.join(dir,path.basename(f).replace("brag-demo-","product-demo-")));}for(const [n,s] of Object.entries({"report.json":"output/qa/report.json","qa-report.json":"output/qa/report.json","video-quality.json":"output/qa/video-quality.json","narration-quality.json":"output/demo/narration-quality.json","storyboard.json":"output/storyboard.json","shot-plan.json":"output/shot-plan.json","evidence-report.json":"output/evidence-report.json","evidence-graph.json":"output/evidence-graph.json","self-evaluation.json":"output/self-evaluation.json","revision-plan.json":"output/revision-plan.json"}))if(fs.existsSync(s))fs.copyFileSync(s,path.join(dir,n));fs.writeFileSync(path.join(dir,"production.json"),JSON.stringify({version:"3.1",generatedAt:new Date().toISOString(),qa,revisions:history},null,2));}
-function main(){checkEnvironment();if(checkOnly){run("HARDENING","harden.js");return;}if(!url)throw new Error("Usage: npm run brag -- https://example.com [maxSteps] [description] [--max-revisions N]");const i=process.argv.indexOf(url);const steps=process.argv[i+1]&&!process.argv[i+1].startsWith("--")?process.argv[i+1]:"4";const description=process.argv.slice(i+2).filter(x=>!x.startsWith("--")&&x!==steps).join(" ");const flag=process.argv.indexOf("--max-revisions");const max=maxAttempts(flag>=0?process.argv[flag+1]:process.env.BRAG_MAX_REVISIONS);fs.mkdirSync("output/revisions",{recursive:true});const history={version:"1.0",maxAttempts:max,attempts:[]};
-for(let attempt=0;attempt<=max;attempt++){if(attempt)cleanOutput();const startedAt=new Date().toISOString();let result;try{result=production(url,steps,description);}catch(e){console.error(e.stack||e);process.exit(1);}
-const decision=buildDecision({attempt,max,plan:result.plan,evaluation:result.evaluation});
-const mediaFail=result.video?.status==="fail", narrationFail=result.narration?.status==="fail";
-if(result.evaluation?.status==="pass"&&result.qa?.status!=="fail"&&!mediaFail&&!narrationFail){history.attempts.push({attempt,startedAt,completedAt:new Date().toISOString(),decision:"pass",evaluationScore:result.evaluation.score,qaStatus:result.qa?.status,videoStatus:result.video?.status,narrationStatus:result.narration?.status});fs.writeFileSync("output/revisions/history.json",JSON.stringify(history,null,2));handoff(result.qa,history);console.log("\nBRAG production complete.");return;}
-if(decision.action==="revise"){const snapshot=snapshotAttempt(attempt,result.plan,result.evaluation,result.qa,{startedAt,decision:"revise"});history.attempts.push({attempt,startedAt,completedAt:new Date().toISOString(),decision:"revise",restartFrom:decision.restartFrom,snapshot});fs.writeFileSync("output/revisions/history.json",JSON.stringify(history,null,2));console.log("\n=== AUTONOMOUS REVISION "+(attempt+1)+"/"+max+" ===");console.log("Restarting from: "+decision.restartFrom);continue;}
-history.attempts.push({attempt,startedAt,completedAt:new Date().toISOString(),decision:"stop",reason:decision.reason});fs.writeFileSync("output/revisions/history.json",JSON.stringify(history,null,2));throw new Error("BRAG stopped before final handoff: "+decision.reason);}}
+function handoff(qa,history){
+  run("RUN MANIFEST","model/run-manifest.js",[],true);
+  const dir="output/final";fs.mkdirSync(dir,{recursive:true});
+  for(const f of finalOutputs()){if(!fs.existsSync(f)||!fs.statSync(f).size)throw new Error("Missing final render: "+f);fs.copyFileSync(f,path.join(dir,path.basename(f).replace("brag-demo-","product-demo-")));}
+  const artifacts={"report.json":"output/qa/report.json","qa-report.json":"output/qa/report.json","video-quality.json":"output/qa/video-quality.json","narration-quality.json":"output/demo/narration-quality.json","storyboard.json":"output/storyboard.json","shot-plan.json":"output/shot-plan.json","evidence-report.json":"output/evidence-report.json","evidence-graph.json":"output/evidence-graph.json","self-evaluation.json":"output/self-evaluation.json","revision-plan.json":"output/revision-plan.json","run-manifest.json":"output/run-manifest.json"};
+  for(const [n,s] of Object.entries(artifacts))if(fs.existsSync(s))fs.copyFileSync(s,path.join(dir,n));
+  fs.writeFileSync(path.join(dir,"production.json"),JSON.stringify({version:"3.2",generatedAt:new Date().toISOString(),qa,revisions:history},null,2));
+}
+function main(){
+  checkEnvironment();if(checkOnly){run("HARDENING","harden.js");return;}
+  if(!url)throw new Error("Usage: npm run brag -- https://example.com [maxSteps] [description] [--max-revisions N]");
+  const i=process.argv.indexOf(url);const steps=process.argv[i+1]&&!process.argv[i+1].startsWith("--")?process.argv[i+1]:"4";const description=process.argv.slice(i+2).filter(x=>!x.startsWith("--")&&x!==steps).join(" ");
+  const flag=process.argv.indexOf("--max-revisions");const max=maxAttempts(flag>=0?process.argv[flag+1]:process.env.BRAG_MAX_REVISIONS);
+  fs.mkdirSync("output/revisions",{recursive:true});const history={version:"1.0",maxAttempts:max,attempts:[]};
+  for(let attempt=0;attempt<=max;attempt++){
+    if(attempt)cleanOutput();const startedAt=new Date().toISOString();let result;
+    try{result=production(url,steps,description);}catch(e){console.error(e.stack||e);process.exit(1);}
+    const decision=buildDecision({attempt,max,plan:result.plan,evaluation:result.evaluation});
+    const mediaFail=result.video?.status==="fail",narrationFail=result.narration?.status==="fail";
+    if(result.evaluation?.status==="pass"&&result.qa?.status!=="fail"&&!mediaFail&&!narrationFail){
+      history.attempts.push({attempt,startedAt,completedAt:new Date().toISOString(),decision:"pass",evaluationScore:result.evaluation.score,qaStatus:result.qa?.status,videoStatus:result.video?.status,narrationStatus:result.narration?.status});
+      fs.writeFileSync("output/revisions/history.json",JSON.stringify(history,null,2));handoff(result.qa,history);console.log("\nBRAG production complete.");return;
+    }
+    if(decision.action==="revise"){
+      const snapshot=snapshotAttempt(attempt,result.plan,result.evaluation,result.qa,{startedAt,decision:"revise"});history.attempts.push({attempt,startedAt,completedAt:new Date().toISOString(),decision:"revise",restartFrom:decision.restartFrom,snapshot});fs.writeFileSync("output/revisions/history.json",JSON.stringify(history,null,2));console.log("\n=== AUTONOMOUS REVISION "+(attempt+1)+"/"+max+" ===");console.log("Restarting from: "+decision.restartFrom);continue;
+    }
+    history.attempts.push({attempt,startedAt,completedAt:new Date().toISOString(),decision:"stop",reason:decision.reason});fs.writeFileSync("output/revisions/history.json",JSON.stringify(history,null,2));throw new Error("BRAG stopped before final handoff: "+decision.reason);
+  }
+}
 main();

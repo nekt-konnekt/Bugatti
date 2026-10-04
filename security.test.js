@@ -1,0 +1,10 @@
+const assert=require("assert");
+const {isPrivateIp,clampSteps}=require("./model/security");
+assert.equal(isPrivateIp("127.0.0.1"),true);
+assert.equal(isPrivateIp("10.0.0.1"),true);
+assert.equal(isPrivateIp("192.168.1.1"),true);
+assert.equal(isPrivateIp("8.8.8.8"),false);
+assert.equal(clampSteps(0),1);
+assert.equal(clampSteps(99),6);
+assert.equal(clampSteps("bad"),4);
+console.log("Security tests passed.");

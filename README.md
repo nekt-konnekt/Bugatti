@@ -191,3 +191,49 @@ npm run qa
 Outputs live under `output/`.
 
 BRAG is personal and local. No accounts, billing, tenants, or SaaS layer.
+
+
+## Clean CLI
+
+The production pipeline now has an explicit CLI instead of relying on positional argument discovery.
+
+Show help:
+
+```bash
+npm run brag -- --help
+```
+
+Typical run:
+
+```bash
+npm run brag -- --url https://your-product.com --steps 4 --description "What this product does"
+```
+
+Useful controls:
+
+- `--max-revisions 2` bounds autonomous repair
+- `--override output/demo/override.json` supplies bounded human edits
+- `--check` runs the environment/hardening check only
+
+The legacy positional form remains supported:
+
+```bash
+npm run brag -- https://your-product.com 4 "What this product does"
+```
+
+## Final production package
+
+A successful run creates `output/final/` containing the three video formats and the production evidence/QA artifacts.
+
+BRAG also writes:
+
+- `output/final/brag-package.json` with SHA-256 checksums
+- `output/final/README.txt` with handoff contents
+
+Package an existing final directory with:
+
+```bash
+npm run package-output
+```
+
+The package is a deterministic folder handoff rather than a proprietary archive, so the artifacts remain directly inspectable and auditable.

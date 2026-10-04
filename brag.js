@@ -66,7 +66,8 @@ function writeFinalManifest(qaReport) {
     "shot-plan.json": "output/shot-plan.json",
     "evidence-report.json": "output/evidence-report.json",
     "evidence-graph.json": "output/evidence-graph.json",
-    "self-evaluation.json": "output/self-evaluation.json"
+    "self-evaluation.json": "output/self-evaluation.json",
+    "revision-plan.json": "output/revision-plan.json"
   };
 
   for (const [name, source] of Object.entries(artifacts)) {
@@ -144,6 +145,7 @@ function main() {
   run("RENDER", "render.js", ["output/demo/package.json"]);
   run("QA", "qa.js", ["output/demo/package.json"]);
   run("SELF-EVALUATE", "model/self-evaluate.js", ["output/demo/package.json"]);
+  run("REVISION PLAN", "model/revision-plan.js");
 
   const qaPath = "output/qa/report.json";
   const selfEvalPath = "output/self-evaluation.json";

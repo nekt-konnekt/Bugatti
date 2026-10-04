@@ -92,6 +92,7 @@ async function runWorkflow(url, options = {}) {
   const startedAt = Date.now();
   const steps = [];
   const visited = new Set();
+  let preferredActionKey = null;
 
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", e => errors.push(e.message));

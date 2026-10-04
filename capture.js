@@ -1,9 +1,12 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const {validateTarget,resourceConfig}=require("./model/security");
+const {createRuntimeGuard}=require("./model/resource-guard");
 
 const url = process.argv[2];
+const CONFIG=resourceConfig();
 const MAX_RETRIES = 3;
-const NAV_TIMEOUT = 30000;
+const NAV_TIMEOUT = CONFIG.navigationTimeoutMs;
 const STABILITY_TIMEOUT = 15000;
 
 if (!url) {
@@ -59,7 +62,7 @@ async function load(page, target) {
     })).filter(x=>x.text));
     await page.screenshot({ path:"output/home.png", fullPage:true });
 
-    const result = {
+    guard.assertTime(); guard.assertOutput();\n    const result = {
       version:"1.1", url, title, description,
       headings:headings.map(x=>x.trim()).filter(Boolean).slice(0,30), links, buttons,
       requestCount:requests.length, requestFailures, consoleErrors,

@@ -71,3 +71,16 @@ npm run verify
 ```
 
 The verifier combines deterministic term matching with an optional local Ollama semantic check. The production pipeline stops when too many claims are unsupported. This prevents invented product capabilities or outcomes from reaching the final video.
+
+
+### Claim provenance
+
+Evidence verification now produces claim-level provenance in `output/evidence-report.json`.
+
+Each demo scene can carry:
+- `evidenceStatus`
+- `evidence[]`
+- claim field references
+- source evidence-unit IDs
+
+This creates a traceable path from **claim → evidence → scene → footage** instead of treating verification as a single pass/fail check.

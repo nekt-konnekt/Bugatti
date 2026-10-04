@@ -40,7 +40,7 @@ async function visibleActions(page) {
 }
 
 function claimTerms(claim) {
-  return [...new Set(String(claim || "").toLowerCase().replace(/[^a-z0-9\\s]/g, " ").split(/\\s+/).filter(x => x.length > 2))];
+  return [...new Set(String(claim || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(x => x.length > 2))];
 }
 
 function actionClaimScore(action, claim) {

@@ -237,3 +237,31 @@ npm run package-output
 ```
 
 The package is a deterministic folder handoff rather than a proprietary archive, so the artifacts remain directly inspectable and auditable.
+
+
+## Security and resource boundaries
+
+BRAG now treats the product URL as an untrusted target.
+
+The capture layer:
+- allows only HTTP(S)
+- rejects embedded URL credentials
+- blocks localhost and private/link-local IP ranges
+- resolves hostnames and rejects hosts resolving into private networks
+- enforces bounded browser steps
+- enforces navigation and action timeouts
+- enforces maximum production runtime
+- limits generated output file count
+- limits server request body size
+- terminates an overlong server-side production process
+
+Resource limits can be adjusted through environment variables, within hard safety bounds:
+
+- `BRAG_MAX_STEPS`
+- `BRAG_NAV_TIMEOUT_MS`
+- `BRAG_ACTION_TIMEOUT_MS`
+- `BRAG_MAX_RUNTIME_MS`
+- `BRAG_MAX_REQUEST_FAILURES`
+- `BRAG_MAX_OUTPUT_FILES`
+
+These limits are intentionally bounded in code. Environment variables cannot disable the security boundary.

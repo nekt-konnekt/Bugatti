@@ -4,12 +4,8 @@
   "private":true,
   "description":"BRAG product-to-video demo engine",
   "scripts":{
-    "start":"next start","capture":"node capture.js","workflow":"node workflow.js","run":"node runner.js","demo":"node demo.js",
-    "render":"node render.js","edit-plan":"node edit-plan.js","voice":"node voice.js","qa":"node qa.js","director":"node director.js",
-    "brag":"node brag.js","check":"node brag.js --check","dev":"next dev","build":"next build","engine":"node server.js",
-    "ai-director":"node model/director.js","model-check":"node -e \"require('./model/ollama').isAvailable().then(ok=>console.log(ok?'Ollama available':'Ollama unavailable'))\"",
-    "visual-director":"node model/vision.js","transcribe":"node model/transcribe.js","verify":"node model/verify.js",
-    "evidence-graph":"node model/evidence-graph.js","product-suite":"node product-suite.js",
+    "start":"next start","capture":"node capture.js","workflow":"node workflow.js","run":"node runner.js","demo":"node demo.js","render":"node render.js","edit-plan":"node edit-plan.js","voice":"node voice.js","qa":"node qa.js","director":"node director.js","brag":"node brag.js","check":"node brag.js --check","dev":"next dev","build":"next build","engine":"node server.js",
+    "ai-director":"node model/director.js","model-check":"node -e \"require('./model/ollama').isAvailable().then(ok=>console.log(ok?'Ollama available':'Ollama unavailable'))\"","visual-director":"node model/vision.js","transcribe":"node model/transcribe.js","verify":"node model/verify.js","evidence-graph":"node model/evidence-graph.js","product-suite":"node product-suite.js",
     "test:revision-loop":"node revision-loop.test.js","test:capture-recovery":"node capture-recovery.test.js"
   },
   "dependencies":{"playwright":"^1.55.0","next":"^16.0.0","react":"^19.0.0","react-dom":"^19.0.0"},

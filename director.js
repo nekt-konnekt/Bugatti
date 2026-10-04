@@ -46,15 +46,28 @@ function buildIntelligence(inspection) {
     "Visible outcome produced by the core workflow";
 
   const promise = clean(inspection.description) || clean(headings[0]) || clean(inspection.title) || "Show the product solving a real user problem.";
+  let ai = null;
+  try {
+    const aiPath = path.join(process.cwd(), "output", "ai-intelligence.json");
+    if (fs.existsSync(aiPath)) ai = JSON.parse(fs.readFileSync(aiPath, "utf8"));
+  } catch {}
+
+  const aiWorkflow = Array.isArray(ai?.workflow) ? ai.workflow.filter(Boolean).slice(0, 3) : null;
+  const aiAction = clean(ai?.strongestAction);
+  const aiArchetype = /^(product|ai-workflow|data-workflow|commerce|creation-workflow|game)$/.test(ai?.archetype || "") ? ai.archetype : null;
 
   return {
     version: "1.0",
-    product: clean(inspection.title) || "Untitled product",
-    promise: promise.slice(0, 240),
-    archetype,
-    strongestAction,
-    workflow,
-    proof,
+    product: clean(ai?.product) || clean(inspection.title) || "Untitled product",
+    promise: clean(ai?.promise || promise).slice(0, 240),
+    problem: clean(ai?.problem),
+    user: clean(ai?.user),
+    hook: clean(ai?.hook),
+    archetype: aiArchetype || archetype,
+    strongestAction: aiAction || strongestAction,
+    workflow: aiWorkflow || workflow,
+    proof: clean(ai?.proof) || proof,
+    ai: ai ? { engine: ai.engine || "ollama", model: ai.model || null, confidence: Number(ai.confidence) || 0 } : null,
     signals,
     evidence: {
       headings: headings.slice(0, 8),

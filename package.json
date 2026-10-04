@@ -23,7 +23,8 @@
     "model-check": "node -e \"require('./model/ollama').isAvailable().then(ok=>console.log(ok?'Ollama available':'Ollama unavailable'))\"",
     "visual-director": "node model/vision.js",
     "transcribe": "node model/transcribe.js",
-    "verify": "node model/verify.js"
+    "verify": "node model/verify.js",
+    "evidence-graph": "node model/evidence-graph.js"
   },
   "dependencies": {
     "playwright": "^1.55.0",

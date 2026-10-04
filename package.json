@@ -1,6 +1,6 @@
 {
   "name": "brag",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "description": "BRAG product-to-video demo engine",
   "scripts": {
@@ -24,7 +24,8 @@
     "visual-director": "node model/vision.js",
     "transcribe": "node model/transcribe.js",
     "verify": "node model/verify.js",
-    "evidence-graph": "node model/evidence-graph.js"
+    "evidence-graph": "node model/evidence-graph.js",
+    "product-suite": "node product-suite.js"
   },
   "dependencies": {
     "playwright": "^1.55.0",

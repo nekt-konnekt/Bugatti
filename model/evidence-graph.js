@@ -31,25 +31,38 @@ function buildGraph() {
 
   const claims = buildClaims(intelligence);
   const states = (manifest.steps || []).filter(s => s.type === "state-captured");
+  const actionEvents = (manifest.steps || []).filter(s => s.type === "action-selected");
   const graphClaims = claims.map(([field, claim]) => {
     const candidates = states.map(state => ({
+      claimBinding: state.claim?.field === field ? "explicit" : "inferred",
       step: state.step,
       screenshot: state.screenshot || null,
       footage: manifest.realFootage?.file || null,
       score: Number(scoreClaim(claim, state).toFixed(3)),
       proof: Boolean(state.evaluation?.proof),
-      reason: state.evaluation?.reason || null
+      reason: state.evaluation?.reason || null,
+      claim: state.claim || null
     })).sort((a,b) => (b.proof - a.proof) || (b.score - a.score));
 
     const reportClaim = report?.claims?.find(x => x.field === field);
     const reportEvidence = report?.claimEvidence?.[field]?.evidence || [];
-    const selected = candidates.filter(x => x.score >= 0.25 || x.proof).slice(0, 3);
+    const selected = candidates
+      .filter(x => x.claimBinding === "explicit" || x.score >= 0.25 || x.proof)
+      .sort((a,b) => (a.claimBinding === "explicit" ? -1 : 1) - (b.claimBinding === "explicit" ? -1 : 1) || (b.proof - a.proof) || (b.score - a.score))
+      .slice(0, 3);
+    const boundActions = actionEvents.filter(x => x.claim?.field === field).map(x => ({
+      step: x.step,
+      action: x.action || null,
+      score: x.director?.score || 0,
+      claim: x.claim
+    }));
     return {
       id: `claim-${field}`,
       field,
       text: claim,
       status: reportClaim?.modelStatus || (reportClaim?.supported ? "supported" : "review"),
       evidence: selected,
+      boundActions,
       verifiedEvidence: reportEvidence
     };
   });
@@ -75,6 +88,10 @@ function buildGraph() {
     version: "1.0",
     generatedAt: new Date().toISOString(),
     status: unsupportedRequired.length ? "review" : "pass",
+    binding: {
+      explicitClaimStateCount: states.filter(s => s.claim?.field).length,
+      explicitClaimActionCount: actionEvents.filter(s => s.claim?.field).length
+    },
     claims: graphClaims,
     shots,
     realFootage: manifest.realFootage || null,

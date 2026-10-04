@@ -102,9 +102,19 @@ function main() {
   run("SPEECH DIRECTOR", "model/transcribe.js");
   run("AI DIRECTOR", "model/director.js");
   run("DIRECT", "director.js");
-  run("EVIDENCE CHECK", "model/verify.js");
 
   run("CAPTURE", "runner.js", [url, maxSteps]);
+
+  run("EVIDENCE CHECK", "model/verify.js");
+
+  const evidencePath = "output/evidence-report.json";
+  if (fs.existsSync(evidencePath)) {
+    const evidence = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
+    if (evidence.status === "fail") {
+      console.error("\nBRAG stopped before rendering because product claims failed evidence verification.");
+      process.exit(3);
+    }
+  }
 
   run("BUILD DEMO PACKAGE", "demo.js", [url, maxSteps, description]);
   run("HUMAN EDIT PLAN", "edit-plan.js", ["output/demo/package.json"]);

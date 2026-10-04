@@ -196,6 +196,12 @@ if (require.main === module) {
 
 
 
+function evidencePhrase(state) {
+  if (!state) return "";
+  const headings = (state.headings || []).map(clean).filter(Boolean).slice(0, 2);
+  return headings.join(" and ") || clean(state.title);
+}
+
 function buildNarrative(intelligence, states) {
   const observed = (states || []).filter(Boolean).map((state, index) => ({
     step: index + 1,
@@ -203,22 +209,58 @@ function buildNarrative(intelligence, states) {
     headings: (state.headings || []).map(clean).filter(Boolean).slice(0, 3),
     evaluation: state.evaluation || null
   }));
+
   const proofState = observed.find(s => s.evaluation?.proof) || observed[observed.length - 1] || null;
   const action = intelligence.strongestAction || "the primary action";
-  const outcome = proofState
-    ? (proofState.headings.length ? proofState.headings.join(" and ") : proofState.title)
-    : intelligence.proof;
+  const firstState = observed[0];
+  const changeState = observed[1] || observed[0];
+  const outcome = evidencePhrase(proofState) || clean(intelligence.proof);
+
+  const workflowScenes = observed.slice(0, 3).map((state, index) => ({
+    id: "workflow-" + (index + 1),
+    step: state.step,
+    text: evidencePhrase(state)
+      ? "Here, the product shows " + evidencePhrase(state) + "."
+      : "This is the next observed step in the workflow.",
+    evidence: {
+      step: state.step,
+      title: state.title,
+      headings: state.headings
+    }
+  }));
+
   return {
-    version: "1.9",
+    version: "2.0",
     structure: ["problem", "action", "change", "outcome"],
     evidence: observed,
     scenes: [
-      { id: "problem", text: intelligence.promise },
-      { id: "action", text: "The workflow starts with " + action + "." },
-      { id: "change", text: intelligence.workflow[1] || "The product processes the user's task." },
-      { id: "outcome", text: outcome || intelligence.proof }
+      {
+        id: "problem",
+        text: clean(intelligence.problem) || clean(intelligence.promise),
+        evidence: { source: "director-intelligence", field: intelligence.problem ? "problem" : "promise" }
+      },
+      {
+        id: "action",
+        text: firstState && evidencePhrase(firstState)
+          ? "Start with " + action + ", then watch the product move into " + evidencePhrase(firstState) + "."
+          : "Start with " + action + ".",
+        evidence: firstState ? { step: firstState.step, title: firstState.title, headings: firstState.headings } : null
+      },
+      {
+        id: "change",
+        text: changeState && evidencePhrase(changeState)
+          ? "The workflow moves to " + evidencePhrase(changeState) + "."
+          : clean(intelligence.workflow[1]) || "The product processes the user's task.",
+        evidence: changeState ? { step: changeState.step, title: changeState.title, headings: changeState.headings } : null
+      },
+      {
+        id: "outcome",
+        text: outcome || "The workflow reaches its useful outcome.",
+        evidence: proofState ? { step: proofState.step, title: proofState.title, headings: proofState.headings } : null
+      }
     ],
-    rule: "Narration is derived only from observed product evidence and director intelligence."
+    workflow: workflowScenes,
+    rule: "Narration must use observed product evidence for workflow and outcome claims. Director intelligence may frame the problem and action, but cannot invent product results."
   };
 }
 

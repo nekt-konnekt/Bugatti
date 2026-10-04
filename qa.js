@@ -109,7 +109,7 @@ const longCaptions = scenes.filter(s => String(s.narration || "").length > 180);
 if (longCaptions.length) add("captions", "warning", "Some narration captions may be difficult to read.", longCaptions.map(s => `${s.id} (${String(s.narration).length} chars)`).join(", "));
 else add("captions", "pass", "Narration lengths are within the conservative caption threshold.");
 
-const narrativeScenes = scenes.filter(s => /^workflow-\\d+$/.test(s.id) || s.id === "result");
+const narrativeScenes = scenes.filter(s => /^workflow-\d+$/.test(s.id) || s.id === "result");
 const ungroundedNarrative = narrativeScenes.filter(s => !Array.isArray(s.evidence) || !s.evidence.length);
 if (ungroundedNarrative.length) {
   add("narrative-provenance", "fail", "Workflow/result narration is missing evidence bindings.", ungroundedNarrative.map(s => s.id).join(", "));

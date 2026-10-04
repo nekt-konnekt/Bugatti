@@ -33,9 +33,20 @@ function evidenceFromInspection(inspection) {
   };
 }
 
+function readVisualEvidence() {
+  try {
+    return JSON.parse(fs.readFileSync("output/visual-intelligence.json", "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 async function buildAIDirector(inspection) {
   if (!(await isAvailable())) return null;
-  const evidence = evidenceFromInspection(inspection);
+  const evidence = {
+    ...evidenceFromInspection(inspection),
+    visual: readVisualEvidence()
+  };
   return generate({
     system: SYSTEM,
     model: DEFAULT_MODEL,
@@ -52,11 +63,12 @@ async function run(inspectionPath = "output/inspection.json", outputPath = "outp
   }
   fs.mkdirSync(require("path").dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, JSON.stringify({
-    version: "1.0",
+    version: "1.1",
     engine: "ollama",
     model: DEFAULT_MODEL,
     generatedAt: new Date().toISOString(),
     evidenceUrl: inspection.url,
+    visualEvidence: Boolean(readVisualEvidence()),
     ...result
   }, null, 2));
   console.log("Local AI Director:", outputPath);

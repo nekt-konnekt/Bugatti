@@ -5,7 +5,10 @@ function endpoint(pathname) {
   return DEFAULT_URL.replace(/\/$/, "") + pathname;
 }
 
-async function generate({ system, prompt, model = DEFAULT_MODEL, format = "json" }) {
+async function generate({ system, prompt, model = DEFAULT_MODEL, format = "json", images = [] }) {
+  const userMessage = { role: "user", content: prompt };
+  if (Array.isArray(images) && images.length) userMessage.images = images;
+
   const response = await fetch(endpoint("/api/chat"), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -16,7 +19,7 @@ async function generate({ system, prompt, model = DEFAULT_MODEL, format = "json"
       options: { temperature: 0.2 },
       messages: [
         { role: "system", content: system },
-        { role: "user", content: prompt }
+        userMessage
       ]
     }),
     signal: AbortSignal.timeout(Number(process.env.OLLAMA_TIMEOUT_MS || 120000))

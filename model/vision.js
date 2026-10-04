@@ -55,8 +55,8 @@ async function run(inputPath = "output/home.png", outputPath = "output/visual-in
 
 if (require.main === module) {
   run().catch(error => {
-    console.error("Visual Director failed:", error.message);
-    process.exit(1);
+    console.error("Visual Director unavailable:", error.message);
+    console.log("Continuing with DOM-only intelligence.");
   });
 }
 

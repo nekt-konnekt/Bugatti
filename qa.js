@@ -109,6 +109,21 @@ const longCaptions = scenes.filter(s => String(s.narration || "").length > 180);
 if (longCaptions.length) add("captions", "warning", "Some narration captions may be difficult to read.", longCaptions.map(s => `${s.id} (${String(s.narration).length} chars)`).join(", "));
 else add("captions", "pass", "Narration lengths are within the conservative caption threshold.");
 
+const narrativeScenes = scenes.filter(s => /^workflow-\\d+$/.test(s.id) || s.id === "result");
+const ungroundedNarrative = narrativeScenes.filter(s => !Array.isArray(s.evidence) || !s.evidence.length);
+if (ungroundedNarrative.length) {
+  add("narrative-provenance", "fail", "Workflow/result narration is missing evidence bindings.", ungroundedNarrative.map(s => s.id).join(", "));
+} else {
+  add("narrative-provenance", "pass", "Workflow and result narration have evidence bindings.", `${narrativeScenes.length} evidence-backed scene(s).`);
+}
+
+const unsupportedNarrative = narrativeScenes.filter(s => s.evidenceStatus === "unsupported");
+if (unsupportedNarrative.length) {
+  add("narrative-support", "fail", "Narrative scenes reference unsupported claims.", unsupportedNarrative.map(s => s.id).join(", "));
+} else {
+  add("narrative-support", "pass", "Narrative scenes do not reference unsupported claims.");
+}
+
 const cursorProblems = scenes.filter(s => {
   const c = s.cursor;
   return c && (!Number.isFinite(Number(c.x)) || !Number.isFinite(Number(c.y)) || Number(c.x) < 0 || Number(c.x) > 1440 || Number(c.y) < 0 || Number(c.y) > 900);

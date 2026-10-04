@@ -1,6 +1,6 @@
 {
   "name": "brag",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "private": true,
   "description": "BRAG product-to-video demo engine",
   "scripts": {
@@ -35,7 +35,8 @@
     "test:cli": "node cli.test.js",
     "test": "npm run regression",
     "test:security": "node security.test.js",
-    "regression": "node regression.js"
+    "regression": "node regression.js",
+    "release-gate": "node release-gate.js"
   },
   "dependencies": {
     "playwright": "^1.55.0",

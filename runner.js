@@ -2,6 +2,8 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 const { buildIntelligence, buildShotPlan, evaluateCapturedState } = require("./director");
+const {validateTarget,resourceConfig}=require("./model/security");
+const {createRuntimeGuard}=require("./model/resource-guard");
 
 const SAFE = /^(start|get started|try|try it|demo|explore|learn more|discover|play|begin|launch|view demo|see demo|continue|next|open|view|details|dashboard|features|how it works)$/i;
 const BLOCKED = /(delete|remove|cancel|logout|log out|pay|purchase|buy|subscribe|checkout|transfer|withdraw|send money|confirm payment|publish|post|deploy|password|reset password|verify|sign in|signin|login|log in|upload|download)/i;
@@ -109,7 +111,10 @@ async function clickWithRecovery(page, locator, target, origin) {
 }
 
 async function runWorkflow(url, options = {}) {
-  const maxSteps = Math.min(Math.max(Number(options.maxSteps) || 4, 1), 6);
+  const CONFIG=resourceConfig();
+  const maxSteps = Math.min(Math.max(Number(options.maxSteps) || CONFIG.maxSteps, 1), 6);
+  await validateTarget(url);
+  const guard=createRuntimeGuard(CONFIG);
   const outputDir = options.outputDir || path.join(process.cwd(), "output", "recording");
   fs.mkdirSync(outputDir, { recursive: true });
   const browser = await chromium.launch({ headless: true });
@@ -145,7 +150,7 @@ async function runWorkflow(url, options = {}) {
     };
 
     for (let step = 1; step <= maxSteps; step++) {
-      const shot = shotPlan.shots[Math.min(step - 1, shotPlan.shots.length - 1)];
+      guard.assertTime(); guard.assertOutput(outputDir);\n      const shot = shotPlan.shots[Math.min(step - 1, shotPlan.shots.length - 1)];
       const targetClaim = claimTargets[shot?.id] || null;
       const actionStartedAt = Date.now(), beforeUrl = page.url();
       const screenshot = "step-" + String(step).padStart(2, "0") + "-before.png";

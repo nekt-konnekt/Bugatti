@@ -17,7 +17,7 @@ function terms(text) {
 
 function corpusFromEvidence() {
   const parts = [];
-  for (const file of ["output/inspection.json", "output/storyboard.json", "output/visual-intelligence.json", "output/speech-intelligence.json"]) {
+  for (const file of ["output/inspection.json", "output/storyboard.json", "output/manifest.json", "output/visual-intelligence.json", "output/speech-intelligence.json"]) {
     try {
       const data = JSON.parse(fs.readFileSync(file, "utf8"));
       parts.push(JSON.stringify(data));

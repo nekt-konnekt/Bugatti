@@ -22,3 +22,15 @@ The local model receives observed product evidence only. It proposes product int
 It does not receive unrestricted browser control.
 
 The deterministic Director and Runner remain the safety boundary.
+
+
+## Visual intelligence
+
+BRAG can optionally send the captured screenshot to a local multimodal Ollama model.
+
+```bash
+ollama pull <your-vision-model>
+OLLAMA_VISION_MODEL=<your-vision-model> npm run visual-director
+```
+
+Set `OLLAMA_VISION_MODEL` separately from `OLLAMA_MODEL` when the text and vision models differ. Visual analysis is advisory and never receives unrestricted browser control. If the model is unavailable or cannot process images, BRAG continues with DOM-only intelligence.

@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "products": [
+    {"name":"Example","url":"https://example.com","type":"baseline"},
+    {"name":"Wikipedia","url":"https://www.wikipedia.org","type":"content"},
+    {"name":"Mozilla","url":"https://www.mozilla.org","type":"product"},
+    {"name":"NASA","url":"https://www.nasa.gov","type":"content"},
+    {"name":"GitHub","url":"https://github.com","type":"developer"},
+    {"name":"Stripe","url":"https://stripe.com","type":"payments"},
+    {"name":"Linear","url":"https://linear.app","type":"software"},
+    {"name":"Figma","url":"https://www.figma.com","type":"design"},
+    {"name":"Notion","url":"https://www.notion.so","type":"software"},
+    {"name":"Vercel","url":"https://vercel.com","type":"developer"}
+  ]
+}

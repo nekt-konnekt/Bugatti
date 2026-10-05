@@ -1,6 +1,6 @@
 {
   "name": "brag",
-  "version": "2.2.0",
+  "version": "2.8.0",
   "private": true,
   "description": "BRAG product-to-video demo engine",
   "scripts": {
@@ -18,7 +18,25 @@
     "check": "node brag.js --check",
     "dev": "next dev",
     "build": "next build",
-    "engine": "node server.js"
+    "engine": "node server.js",
+    "ai-director": "node model/director.js",
+    "model-check": "node -e \"require('./model/ollama').isAvailable().then(ok=>console.log(ok?'Ollama available':'Ollama unavailable'))\"",
+    "visual-director": "node model/vision.js",
+    "transcribe": "node model/transcribe.js",
+    "verify": "node model/verify.js",
+    "evidence-graph": "node model/evidence-graph.js",
+    "product-suite": "node product-suite.js",
+    "run-manifest": "node model/run-manifest.js",
+    "narration-quality": "node model/narration-quality.js",
+    "video-quality": "node model/video-quality.js",
+    "test:revision-loop": "node revision-loop.test.js",
+    "test:capture-recovery": "node capture-recovery.test.js",
+    "package-output": "node model/package-output.js",
+    "test:cli": "node cli.test.js",
+    "test": "npm run regression",
+    "test:security": "node security.test.js",
+    "regression": "node regression.js",
+    "release-gate": "node release-gate.js"
   },
   "dependencies": {
     "playwright": "^1.55.0",

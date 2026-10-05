@@ -60,6 +60,27 @@ else add("edit-plan", "warning", "Edit plan is missing.", "Run npm run edit-plan
 if (exists(audioManifestPath)) audioManifest = JSON.parse(fs.readFileSync(audioManifestPath, "utf8"));
 
 const scenes = Array.isArray(pkg.scenes) ? pkg.scenes : [];
+const evidenceReportPath = path.join(outputRoot, "evidence-report.json");
+const evidenceGraphPath = path.join(outputRoot, "evidence-graph.json");
+const evidenceReport = exists(evidenceReportPath) ? JSON.parse(fs.readFileSync(evidenceReportPath, "utf8")) : null;
+const evidenceGraph = exists(evidenceGraphPath) ? JSON.parse(fs.readFileSync(evidenceGraphPath, "utf8")) : null;
+
+if (!evidenceReport) add("evidence-report", "fail", "Evidence report is missing.", "Production claims cannot be traced without the report.");
+else if (evidenceReport.status === "fail") add("evidence-report", "fail", "Evidence verification failed.", `${evidenceReport.unsupportedCount || 0} unsupported claim(s).`);
+else if (evidenceReport.status === "review") add("evidence-report", "warning", "Evidence verification requires review.");
+else add("evidence-report", "pass", "Evidence verification passed.");
+
+if (!evidenceGraph) add("evidence-graph", "fail", "Evidence graph is missing.", "Claim-to-shot provenance cannot be verified.");
+else {
+  const requiredClaims = (evidenceGraph.claims || []).filter(c => ["promise", "strongestAction", "proof"].includes(c.field));
+  const broken = requiredClaims.filter(c => !c.evidence?.length);
+  const explicitBindings = evidenceGraph.binding?.explicitClaimStateCount || 0;
+  if (broken.length) add("evidence-provenance", "fail", "Required claims have no captured evidence.", broken.map(c => c.field).join(", "));
+  else if (!explicitBindings) add("evidence-provenance", "warning", "No explicit claim-to-state bindings were captured.");
+  else add("evidence-provenance", "pass", "Required claims resolve to captured evidence.", `${explicitBindings} explicit state binding(s).`);
+}
+
+
 const states = manifest?.steps?.filter(s => s.type === "state-captured") || [];
 
 if (!scenes.length) add("scenes", "fail", "Demo package contains no scenes.");
@@ -71,8 +92,14 @@ else if (states.length === 1) add("workflow", "warning", "Only one workflow stat
 else add("workflow", "pass", "Workflow captured multiple product states.", `${states.length} states detected.`);
 
 const captureHealth = manifest?.captureHealth || null;
-if (captureHealth) {\n  if (captureHealth.pageCrashed) add("capture-health", "fail", "Browser page crashed during capture.");\n  else if (captureHealth.actionFailures) add("capture-health", "warning", "One or more browser actions required recovery.", `${captureHealth.actionFailures} action failure(s).`);\n  else add("capture-health", "pass", "Capture health checks completed.");\n  if (captureHealth.recordingValid === false) add("recording-health", "fail", "Browser recording was not validated.");
-}\n\nconst errors = manifest?.consoleErrors || [];
+if (captureHealth) {
+  if (captureHealth.pageCrashed) add("capture-health", "fail", "Browser page crashed during capture.");
+  else if (captureHealth.actionFailures) add("capture-health", "warning", "One or more browser actions required recovery.", `${captureHealth.actionFailures} action failure(s).`);
+  else add("capture-health", "pass", "Capture health checks completed.");
+  if (captureHealth.recordingValid === false) add("recording-health", "fail", "Browser recording was not validated.");
+}
+
+const errors = manifest?.consoleErrors || [];
 if (errors.length) add("console-errors", "warning", "Browser console errors were captured.", `${errors.length} error(s) recorded.`);
 else add("console-errors", "pass", "No browser console errors were recorded.");
 
@@ -87,6 +114,21 @@ else add("durations", "pass", "All scene durations are positive.");
 const longCaptions = scenes.filter(s => String(s.narration || "").length > 180);
 if (longCaptions.length) add("captions", "warning", "Some narration captions may be difficult to read.", longCaptions.map(s => `${s.id} (${String(s.narration).length} chars)`).join(", "));
 else add("captions", "pass", "Narration lengths are within the conservative caption threshold.");
+
+const narrativeScenes = scenes.filter(s => /^workflow-\d+$/.test(s.id) || s.id === "result");
+const ungroundedNarrative = narrativeScenes.filter(s => !Array.isArray(s.evidence) || !s.evidence.length);
+if (ungroundedNarrative.length) {
+  add("narrative-provenance", "fail", "Workflow/result narration is missing evidence bindings.", ungroundedNarrative.map(s => s.id).join(", "));
+} else {
+  add("narrative-provenance", "pass", "Workflow and result narration have evidence bindings.", `${narrativeScenes.length} evidence-backed scene(s).`);
+}
+
+const unsupportedNarrative = narrativeScenes.filter(s => s.evidenceStatus === "unsupported");
+if (unsupportedNarrative.length) {
+  add("narrative-support", "fail", "Narrative scenes reference unsupported claims.", unsupportedNarrative.map(s => s.id).join(", "));
+} else {
+  add("narrative-support", "pass", "Narrative scenes do not reference unsupported claims.");
+}
 
 const cursorProblems = scenes.filter(s => {
   const c = s.cursor;

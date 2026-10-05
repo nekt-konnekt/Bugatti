@@ -46,15 +46,28 @@ function buildIntelligence(inspection) {
     "Visible outcome produced by the core workflow";
 
   const promise = clean(inspection.description) || clean(headings[0]) || clean(inspection.title) || "Show the product solving a real user problem.";
+  let ai = null;
+  try {
+    const aiPath = path.join(process.cwd(), "output", "ai-intelligence.json");
+    if (fs.existsSync(aiPath)) ai = JSON.parse(fs.readFileSync(aiPath, "utf8"));
+  } catch {}
+
+  const aiWorkflow = Array.isArray(ai?.workflow) ? ai.workflow.filter(Boolean).slice(0, 3) : null;
+  const aiAction = clean(ai?.strongestAction);
+  const aiArchetype = /^(product|ai-workflow|data-workflow|commerce|creation-workflow|game)$/.test(ai?.archetype || "") ? ai.archetype : null;
 
   return {
-    version: "1.0",
-    product: clean(inspection.title) || "Untitled product",
-    promise: promise.slice(0, 240),
-    archetype,
-    strongestAction,
-    workflow,
-    proof,
+    version: "1.1",
+    product: clean(ai?.product) || clean(inspection.title) || "Untitled product",
+    promise: clean(ai?.promise || promise).slice(0, 240),
+    problem: clean(ai?.problem),
+    user: clean(ai?.user),
+    hook: clean(ai?.hook),
+    archetype: aiArchetype || archetype,
+    strongestAction: aiAction || strongestAction,
+    workflow: aiWorkflow || workflow,
+    proof: clean(ai?.proof) || proof,
+    ai: ai ? { engine: ai.engine || "ollama", model: ai.model || null, confidence: Number(ai.confidence) || 0 } : null,
     signals,
     evidence: {
       headings: headings.slice(0, 8),
@@ -64,9 +77,29 @@ function buildIntelligence(inspection) {
   };
 }
 
+function scoreWorkflowStep(text, evidence = {}) {
+  const value = clean(text).toLowerCase();
+  if (!value) return 0;
+  const corpus = [
+    ...(evidence.headings || []),
+    ...(evidence.actions || []),
+    ...(evidence.links || [])
+  ].join(" ").toLowerCase();
+  const terms = [...new Set(value.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(x => x.length > 2))];
+  return terms.length ? terms.filter(t => corpus.includes(t)).length / terms.length : 0;
+}
+
+function rankWorkflow(workflow, evidence) {
+  return (workflow || []).map((step, index) => ({
+    step: clean(step),
+    index,
+    evidenceScore: Number(scoreWorkflowStep(step, evidence).toFixed(3))
+  })).sort((a, b) => b.evidenceScore - a.evidenceScore || a.index - b.index).map(x => x.step);
+}
+
 function buildShotPlan(intelligence) {
   const archetype = intelligence.archetype;
-  const workflow = intelligence.workflow || [];
+  const workflow = rankWorkflow(intelligence.workflow || [], intelligence.evidence || []);
   const shots = [
     { id: "establish", type: "establish", duration: 3, goal: "Show the real product clearly before interaction.", action: null },
     { id: "primary-action", type: "interaction", duration: 4, goal: workflow[0] || "Start the primary experience.", action: intelligence.strongestAction },
@@ -93,6 +126,7 @@ function buildShotPlan(intelligence) {
   return {
     version: "1.0",
     strategy: "director-shot-plan",
+    selection: "Evidence-ranked workflow steps preserve the strongest observed path first.",
     shots,
     safety: "Shots may guide capture but never override runner safety policy."
   };
@@ -162,6 +196,12 @@ if (require.main === module) {
 
 
 
+function evidencePhrase(state) {
+  if (!state) return "";
+  const headings = (state.headings || []).map(clean).filter(Boolean).slice(0, 2);
+  return headings.join(" and ") || clean(state.title);
+}
+
 function buildNarrative(intelligence, states) {
   const observed = (states || []).filter(Boolean).map((state, index) => ({
     step: index + 1,
@@ -169,22 +209,58 @@ function buildNarrative(intelligence, states) {
     headings: (state.headings || []).map(clean).filter(Boolean).slice(0, 3),
     evaluation: state.evaluation || null
   }));
+
   const proofState = observed.find(s => s.evaluation?.proof) || observed[observed.length - 1] || null;
   const action = intelligence.strongestAction || "the primary action";
-  const outcome = proofState
-    ? (proofState.headings.length ? proofState.headings.join(" and ") : proofState.title)
-    : intelligence.proof;
+  const firstState = observed[0];
+  const changeState = observed[1] || observed[0];
+  const outcome = evidencePhrase(proofState) || clean(intelligence.proof);
+
+  const workflowScenes = observed.slice(0, 3).map((state, index) => ({
+    id: "workflow-" + (index + 1),
+    step: state.step,
+    text: evidencePhrase(state)
+      ? "Here, the product shows " + evidencePhrase(state) + "."
+      : "This is the next observed step in the workflow.",
+    evidence: {
+      step: state.step,
+      title: state.title,
+      headings: state.headings
+    }
+  }));
+
   return {
-    version: "1.9",
+    version: "2.0",
     structure: ["problem", "action", "change", "outcome"],
     evidence: observed,
     scenes: [
-      { id: "problem", text: intelligence.promise },
-      { id: "action", text: "The workflow starts with " + action + "." },
-      { id: "change", text: intelligence.workflow[1] || "The product processes the user's task." },
-      { id: "outcome", text: outcome || intelligence.proof }
+      {
+        id: "problem",
+        text: clean(intelligence.problem) || clean(intelligence.promise),
+        evidence: { source: "director-intelligence", field: intelligence.problem ? "problem" : "promise" }
+      },
+      {
+        id: "action",
+        text: firstState && evidencePhrase(firstState)
+          ? "Start with " + action + ", then watch the product move into " + evidencePhrase(firstState) + "."
+          : "Start with " + action + ".",
+        evidence: firstState ? { step: firstState.step, title: firstState.title, headings: firstState.headings } : null
+      },
+      {
+        id: "change",
+        text: changeState && evidencePhrase(changeState)
+          ? "The workflow moves to " + evidencePhrase(changeState) + "."
+          : clean(intelligence.workflow[1]) || "The product processes the user's task.",
+        evidence: changeState ? { step: changeState.step, title: changeState.title, headings: changeState.headings } : null
+      },
+      {
+        id: "outcome",
+        text: outcome || "The workflow reaches its useful outcome.",
+        evidence: proofState ? { step: proofState.step, title: proofState.title, headings: proofState.headings } : null
+      }
     ],
-    rule: "Narration is derived only from observed product evidence and director intelligence."
+    workflow: workflowScenes,
+    rule: "Narration must use observed product evidence for workflow and outcome claims. Director intelligence may frame the problem and action, but cannot invent product results."
   };
 }
 

@@ -191,3 +191,163 @@ npm run qa
 Outputs live under `output/`.
 
 BRAG is personal and local. No accounts, billing, tenants, or SaaS layer.
+
+
+## Clean CLI
+
+The production pipeline now has an explicit CLI instead of relying on positional argument discovery.
+
+Show help:
+
+```bash
+npm run brag -- --help
+```
+
+Typical run:
+
+```bash
+npm run brag -- --url https://your-product.com --steps 4 --description "What this product does"
+```
+
+Useful controls:
+
+- `--max-revisions 2` bounds autonomous repair
+- `--override output/demo/override.json` supplies bounded human edits
+- `--check` runs the environment/hardening check only
+
+The legacy positional form remains supported:
+
+```bash
+npm run brag -- https://your-product.com 4 "What this product does"
+```
+
+## Final production package
+
+A successful run creates `output/final/` containing the three video formats and the production evidence/QA artifacts.
+
+BRAG also writes:
+
+- `output/final/brag-package.json` with SHA-256 checksums
+- `output/final/README.txt` with handoff contents
+
+Package an existing final directory with:
+
+```bash
+npm run package-output
+```
+
+The package is a deterministic folder handoff rather than a proprietary archive, so the artifacts remain directly inspectable and auditable.
+
+
+## Security and resource boundaries
+
+BRAG now treats the product URL as an untrusted target.
+
+The capture layer:
+- allows only HTTP(S)
+- rejects embedded URL credentials
+- blocks localhost and private/link-local IP ranges
+- resolves hostnames and rejects hosts resolving into private networks
+- enforces bounded browser steps
+- enforces navigation and action timeouts
+- enforces maximum production runtime
+- limits generated output file count
+- limits server request body size
+- terminates an overlong server-side production process
+
+Resource limits can be adjusted through environment variables, within hard safety bounds:
+
+- `BRAG_MAX_STEPS`
+- `BRAG_NAV_TIMEOUT_MS`
+- `BRAG_ACTION_TIMEOUT_MS`
+- `BRAG_MAX_RUNTIME_MS`
+- `BRAG_MAX_REQUEST_FAILURES`
+- `BRAG_MAX_OUTPUT_FILES`
+
+These limits are intentionally bounded in code. Environment variables cannot disable the security boundary.
+
+
+## Regression and multi-product testing
+
+Run the deterministic regression suite:
+
+```bash
+npm test
+```
+
+This verifies the revision loop, capture recovery, CLI parsing, security boundaries, and required production modules.
+
+BRAG also maintains a ten-product external matrix in `test/products.json`.
+
+Inspect the complete matrix:
+
+```bash
+BRAG_TEST_LIMIT=10 node product-suite.js
+```
+
+Run a bounded slice:
+
+```bash
+BRAG_TEST_OFFSET=0 BRAG_TEST_LIMIT=5 node product-suite.js
+BRAG_TEST_OFFSET=5 BRAG_TEST_LIMIT=5 node product-suite.js
+```
+
+For full production tests, use `--full` only when the local environment has Playwright, FFmpeg, and the required AI/TTS dependencies:
+
+```bash
+BRAG_TEST_LIMIT=10 node product-suite.js --full
+```
+
+The release target is **8/10 unrelated products passing**. Inspect mode tests evidence extraction and browser reachability. Full mode tests the complete Product → Story → Video pipeline.
+
+## Final production release gate
+
+BRAG now has a release gate that aggregates the evidence produced by the production pipeline instead of relying on a single QA score.
+
+Run:
+
+```bash
+npm run regression
+npm run product-suite
+npm run release-gate
+```
+
+For the full ten-product production matrix:
+
+```bash
+BRAG_TEST_LIMIT=10 node product-suite.js --full
+npm run release-gate
+```
+
+The gate evaluates:
+
+- deterministic regression results
+- required production modules
+- runtime dependencies
+- the 10-product matrix against the **8/10** release target
+- production QA
+- rendered video quality
+- optional narration quality
+- self-evaluation
+- bounded revision safety
+- run-manifest reproducibility
+- final production handoff
+- final package integrity
+
+Status semantics:
+
+- **READY**: release criteria are satisfied by recorded evidence
+- **REVIEW**: evidence is missing or human review remains
+- **FAIL**: a release blocker failed
+
+The gate does not pretend that tests, external product runs, or deployments happened when they did not. It only evaluates evidence that exists under `output/`.
+
+Report:
+
+```
+output/release-gate/report.json
+output/release-gate/README.txt
+```
+
+No deployment is performed by the release gate.
+

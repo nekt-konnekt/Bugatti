@@ -12,7 +12,7 @@ const initialScenes: Scene[] = [
   { label: "05", title: "Close", duration: "04s", status: "Waiting" }
 ];
 
-const DEFAULT_ENGINE = (process.env.NEXT_PUBLIC_BRAG_ENGINE_URL || "http://localhost:4173").replace(/\/$/, "");
+const DEFAULT_ENGINE = (process.env.NEXT_PUBLIC_BRAG_ENGINE_URL || "https://brag-production.up.railway.app").replace(/\/$/, "");
 
 type EngineStatus = "unknown" | "checking" | "connected" | "offline";
 
@@ -29,7 +29,7 @@ export default function Home() {
   const [engineToken, setEngineToken] = useState("");
 
   useEffect(() => {
-    setEngineUrl(localStorage.getItem("brag_engine_url") || DEFAULT_ENGINE);
+    const storedEngine = localStorage.getItem("brag_engine_url");\n    setEngineUrl(storedEngine && !/^https?:\/\/localhost(?::\\d+)?$/i.test(storedEngine) ? storedEngine : DEFAULT_ENGINE);
     setEngineToken(localStorage.getItem("brag_engine_token") || "");
   }, []);
 
@@ -74,7 +74,7 @@ export default function Home() {
     setError("");
     try {
       const available = await checkEngine();
-      if (!available) throw new Error("BRAG engine is not reachable. Start it with npm run engine, or set NEXT_PUBLIC_BRAG_ENGINE_URL to a reachable engine URL.");
+      if (!available) throw new Error("BRAG engine is not reachable. Check the Railway worker URL or start a local BRAG engine.");
       const data = await engineRequest("/api/inspect", { url });
       setInspection(data.inspection);
       const intelligence = data.storyboard?.intelligence;

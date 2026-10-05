@@ -29,7 +29,8 @@ export default function Home() {
   const [engineToken, setEngineToken] = useState("");
 
   useEffect(() => {
-    const storedEngine = localStorage.getItem("brag_engine_url");\n    setEngineUrl(storedEngine && !/^https?:\/\/localhost(?::\\d+)?$/i.test(storedEngine) ? storedEngine : DEFAULT_ENGINE);
+    const storedEngine = localStorage.getItem("brag_engine_url");
+    setEngineUrl(storedEngine && !/^https?:\/\/localhost(?::\d+)?$/i.test(storedEngine) ? storedEngine : DEFAULT_ENGINE);
     setEngineToken(localStorage.getItem("brag_engine_token") || "");
   }, []);
 

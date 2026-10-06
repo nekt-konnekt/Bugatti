@@ -36,6 +36,7 @@ export default function Home() {
   const [engineUrl, setEngineUrl] = useState(DEFAULT_ENGINE);
   const [engineToken, setEngineToken] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [videoFormat, setVideoFormat] = useState<"16x9" | "9x16" | "1x1">("16x9");
 
   useEffect(() => {
     const storedEngine = localStorage.getItem("brag_engine_url");
@@ -461,7 +462,7 @@ export default function Home() {
             <span>
               BRAG / <strong>{productName.toUpperCase()}</strong>
             </span>
-            <span>16:9 · 1280 × 720</span>
+            <span>{videoFormat === "16x9" ? "16:9 · 1280 × 720" : videoFormat === "9x16" ? "9:16 · 720 × 1280" : "1:1 · 1080 × 1080"}</span>
           </div>
 
           <div className="stage-content">
@@ -475,18 +476,39 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="fake-browser">
-              <div className="browser-bar">
-                <i />
-                <i />
-                <i />
-                <span>{url || "yourproduct.com"}</span>
-              </div>
-              <div className="browser-body">
-                <div />
-                <div />
-                <div className="wide" />
-              </div>
+            <div className="video-preview">
+              {production?.ok ? (
+                <>
+                  <video
+                    key={videoFormat}
+                    className="demo-video"
+                    controls
+                    playsInline
+                    preload="metadata"
+                    src={`${ENGINE}/api/media?file=output/final/product-demo-${videoFormat}.mp4`}
+                  />
+                  <div className="video-toolbar">
+                    <span>VIDEO READY</span>
+                    <div className="format-switcher">
+                      {(["16x9", "9x16", "1x1"] as const).map((format) => (
+                        <button
+                          key={format}
+                          className={videoFormat === format ? "active" : ""}
+                          onClick={() => setVideoFormat(format)}
+                        >
+                          {format === "16x9" ? "16:9" : format === "9x16" ? "9:16" : "1:1"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="video-empty">
+                  <div className="video-empty-mark">▶</div>
+                  <strong>Your finished demo will appear here.</strong>
+                  <span>Capture the real product, then render the directed edit.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

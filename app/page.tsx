@@ -19,7 +19,9 @@ type EngineStatus = "unknown" | "checking" | "connected" | "offline";
 export default function Home() {
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
-  const [stage, setStage] = useState<"idle" | "inspecting" | "ready" | "capturing" | "error">("idle");
+  const [stage, setStage] = useState<"idle" | "inspecting" | "ready" | "capturing" | "producing" | "video_ready" | "error">("idle");
+  const [captureComplete, setCaptureComplete] = useState(false);
+  const [production, setProduction] = useState<any>(null);
   const [scenes, setScenes] = useState(initialScenes);
   const [selected, setSelected] = useState(2);
   const [inspection, setInspection] = useState<any>(null);
@@ -62,17 +64,19 @@ export default function Home() {
       body: JSON.stringify(body)
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setEngineStatus("offline");
-      throw new Error(data.error || "BRAG engine failed.");
-    }
     setEngineStatus("connected");
+    if (!response.ok) {
+      const detail = data?.error || (data?.log ? "BRAG engine request failed.\n" + data.log : "") || "BRAG engine returned HTTP " + response.status + ".";
+      throw new Error(detail);
+    }
     return data;
   }
 
   async function buildStory() {
     setStage("inspecting");
     setError("");
+    setCaptureComplete(false);
+    setProduction(null);
     try {
       const available = await checkEngine();
       if (!available) throw new Error("BRAG engine is not reachable. Check the Railway worker URL or start a local BRAG engine.");
@@ -99,8 +103,11 @@ export default function Home() {
     setStage("capturing");
     setError("");
     try {
-      await engineRequest("/api/record", { url, maxSteps: 4 });
+      const data = await engineRequest("/api/record", { url, maxSteps: 4 });
+      setCaptureComplete(true);
+      setProduction(null);
       setStage("ready");
+      if (data?.ok === false) throw new Error(data.error || "Capture did not complete successfully.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Capture failed.");
       setStage("error");
@@ -108,13 +115,19 @@ export default function Home() {
   }
 
   async function produce() {
-    setStage("capturing");
+    setStage("producing");
     setError("");
     try {
-      await engineRequest("/api/produce", { url, maxSteps: 4, description });
-      setStage("ready");
+      const data = await engineRequest("/api/produce", { url, maxSteps: 4, description });
+      setProduction(data);
+      if (!data?.ok) {
+        setError(data?.error || data?.log || "Video production failed.");
+        setStage("error");
+        return;
+      }
+      setStage("video_ready");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Capture failed.");
+      setError(e instanceof Error ? e.message : "Video production failed.");
       setStage("error");
     }
   }
@@ -144,7 +157,7 @@ export default function Home() {
           <label>Product URL<input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yourproduct.com" /></label>
           <label>What does it do?<textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the product, problem, and user." rows={5}/></label>
           <div className="dropzone"><strong>+ Add screenshots</strong><span>PNG, JPG · optional</span></div>
-          <button className="primary" onClick={buildStory} disabled={!url || stage === "inspecting"}>
+          <button className="primary" onClick={buildStory} disabled={!url || stage === "inspecting" || stage === "capturing" || stage === "producing"}>
             {stage === "inspecting" ? "Inspecting product..." : "Build demo story"}
           </button>
           <div className="engine-settings"><label>Engine URL<input value={engineUrl} onChange={e => setEngineUrl(e.target.value)} onBlur={() => localStorage.setItem("brag_engine_url", engineUrl.replace(/\/$/, ""))} placeholder="https://your-brag-worker.example.com" /></label><label>Worker token<input type="password" value={engineToken} onChange={e => setEngineToken(e.target.value)} onBlur={() => localStorage.setItem("brag_engine_token", engineToken)} placeholder="Optional if worker auth is enabled" /></label></div><div className="engine-note"><span className="live-dot"/> Engine: <code>{ENGINE}</code>. Vercel hosts the control surface; Playwright, FFmpeg, capture and rendering run in the BRAG engine.</div>
@@ -152,7 +165,7 @@ export default function Home() {
         </aside>
 
         <section className="director-panel">
-          <div className="section-head"><span>02</span><h2>BRAG Director</h2><em className={stage === "ready" ? "ok" : ""}>{stage === "idle" ? "WAITING" : stage.toUpperCase()}</em></div>
+          <div className="section-head"><span>02</span><h2>BRAG Director</h2><em className={stage === "ready" || stage === "video_ready" ? "ok" : ""}>{stage === "idle" ? "WAITING" : stage === "video_ready" ? "VIDEO READY" : stage.toUpperCase()}</em></div>
           <div className="director-grid">
             <div className="intelligence">
               <div className="mini-label">PRODUCT INTELLIGENCE</div>
@@ -183,7 +196,7 @@ export default function Home() {
       <section className="studio">
         <div className="studio-head">
           <div><div className="kicker">03 · DEMO STUDIO</div><h2>Real footage. Directed edit.</h2></div>
-          <div className="actions"><button onClick={capture} disabled={stage !== "ready"}>{stage === "capturing" ? "Capturing..." : "Capture real product"}</button><button className="primary" onClick={produce} disabled={stage !== "ready"}>{stage === "capturing" ? "Producing..." : "Render demo"}</button></div>
+          <div className="actions"><button onClick={capture} disabled={stage !== "ready"}>{stage === "capturing" ? "Capturing..." : captureComplete ? "✓ Real footage captured" : "Capture real product"}</button><button className="primary" onClick={produce} disabled={stage !== "ready"}>{stage === "producing" ? "Producing..." : stage === "video_ready" ? "✓ Video ready" : "Render demo"}</button></div>
         </div>
         <div className="stage">
           <div className="stage-top"><span>BRAG / {productName.toUpperCase()}</span><span>1280 × 720</span></div>

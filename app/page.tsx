@@ -476,24 +476,24 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="video-preview">
+            <div className="fake-browser video-preview">
               {production?.ok ? (
                 <>
                   <video
                     key={videoFormat}
-                    className="demo-video"
+                    className="demo-video" style={{ display: "block", width: "100%", height: "330px", objectFit: "contain", background: "#050705" }}
                     controls
                     playsInline
                     preload="metadata"
                     src={`${ENGINE}/api/media?file=output/final/product-demo-${videoFormat}.mp4`}
                   />
-                  <div className="video-toolbar">
+                  <div className="video-toolbar" style={{ minHeight: 54, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 13px", borderTop: "1px solid #293028", color: "#b8c1b4", fontSize: 11 }}>
                     <span>VIDEO READY</span>
-                    <div className="format-switcher">
+                    <div className="format-switcher" style={{ display: "flex", gap: 5 }}>
                       {(["16x9", "9x16", "1x1"] as const).map((format) => (
                         <button
                           key={format}
-                          className={videoFormat === format ? "active" : ""}
+                          className={videoFormat === format ? "active" : ""} style={{ border: "1px solid #374036", borderRadius: 7, background: videoFormat === format ? "#b8f36b" : "#111610", color: videoFormat === format ? "#11140f" : "#8f998a", padding: "7px 9px", fontSize: 10, fontWeight: 800 }}
                           onClick={() => setVideoFormat(format)}
                         >
                           {format === "16x9" ? "16:9" : format === "9x16" ? "9:16" : "1:1"}
@@ -503,7 +503,7 @@ export default function Home() {
                   </div>
                 </>
               ) : (
-                <div className="video-empty">
+                <div className="fake-browser video-empty" style={{ height: 330, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", color: "#fff", padding: 30 }}>
                   <div className="video-empty-mark">▶</div>
                   <strong>Your finished demo will appear here.</strong>
                   <span>Capture the real product, then render the directed edit.</span>
